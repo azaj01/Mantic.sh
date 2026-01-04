@@ -1,10 +1,16 @@
 # Mantic
+[![npm version](https://img.shields.io/npm/v/mantic.sh.svg?style=flat-square)](https://www.npmjs.com/package/mantic.sh)
+[![Install in Cursor](https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjogInN0ZGlvIiwgImNvbW1hbmQiOiAibnB4IiwgImFyZ3MiOiBbIi15IiwgIm1hbnRpYy5zaEBsYXRlc3QiLCAic2VydmVyIl19)
+[![Install in VS Code](https://img.shields.io/badge/VS%20Code-Install-007ACC?style=flat-square&logo=visual-studio-code&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22mantic.sh%40latest%22%2C%20%22server%22%5D%7D)
 
 **The reference implementation of cognitive code search.**
 
 > "Embeddings are an expensive workaround for missing structure." — *The Mantic Manifesto*
 
 Mantic is the infrastructure layer that removes unnecessary thinking from AI agents. It does not read your code; it infers intent from structure, enabling sub-300ms retrieval without heavy indexing or vector databases.
+
+## 🤖 Agent Rules (Auto-Pilot)
+Want Cursor or Claude to use Mantic automatically? [**Copy these Agent Rules**](./AGENT_RULES.md).
 
 ## The 20-Watt Insight
 
