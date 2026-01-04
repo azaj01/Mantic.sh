@@ -5,3 +5,4 @@ dist
 *.backup
 .mantic/
 .claude/
+.npmrc

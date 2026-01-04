@@ -4,9 +4,9 @@
   "description": "The reference implementation of mantic code search.",
   "main": "dist/index.js",
   "bin": {
-    "mantic": "./dist/index.js",
-    "mantic.sh": "./dist/index.js",
-    "mantic-server": "./dist/mcp-server.js"
+    "mantic": "dist/index.js",
+    "mantic.sh": "dist/index.js",
+    "mantic-server": "dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsc",
