@@ -26,6 +26,8 @@ Mantic formalizes this behavior into deterministic infrastructure.
 ## Performance
 
 - **Sub-300ms P99 Latency** - Verified on large monorepos (Cal.com, 9k+ files)
+- **80% Token Reduction** - Saves ~300k tokens vs traditional agent search patterns
+- **97% Faster** - Reduces complex exploratory searches from ~15 mins to ~30 secs
 - **Zero-Read Determinism** - Stable sorting with tie-breaking for consistent agent outputs
 - **Zero external dependencies** - No API keys, no vector DB, no external services
 - **6× faster** than embedding-based alternatives
@@ -109,8 +111,8 @@ Mantic provides an MCP server for integration with Claude Desktop and other MCP 
 
 ### Setup
 
-- [**Install on Cursor**](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIm1hbnRpYy5zaCIsInNlcnZlciJdfQ==)
-- [**Install on VS Code**](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mantic.sh%22%2C%22server%22%5D%7D)
+- [**Install on Cursor**](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIm1hbnRpYy5zaEBsYXRlc3QiLCJzZXJ2ZXIiXX0=)
+- [**Install on VS Code**](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mantic.sh%40latest%22%2C%22server%22%5D%7D)
 
 ### Manual Setup
 
@@ -122,7 +124,7 @@ Mantic provides an MCP server for integration with Claude Desktop and other MCP 
       "mcpServers": {
         "mantic": {
           "command": "npx",
-          "args": ["-y", "mantic.sh", "server"]
+          "args": ["-y", "mantic.sh@latest", "server"]
         }
       }
     }
@@ -136,7 +138,7 @@ Mantic provides an MCP server for integration with Claude Desktop and other MCP 
 3.  Fill in the details:
     -   **Name**: `mantic`
     -   **Type**: `command`
-    -   **Command**: `npx -y mantic.sh server`
+    -   **Command**: `npx -y mantic.sh@latest server`
 
 ### VS Code (via Cline or equivalent)
 
@@ -147,7 +149,7 @@ Mantic provides an MCP server for integration with Claude Desktop and other MCP 
     {
       "mantic": {
         "command": "npx",
-        "args": ["-y", "mantic.sh", "server"]
+        "args": ["-y", "mantic.sh@latest", "server"]
       }
     }
     ```
