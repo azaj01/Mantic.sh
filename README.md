@@ -1,9 +1,10 @@
 # Mantic
 
-[![npm version](https://img.shields.io/npm/v/mantic.sh.svg?style=flat-square)](https://www.npmjs.com/package/mantic.sh)
+[![npm version](https://img.shields.io/npm/v/mantic.sh.svg?style=flat-square&color=CB3837)](https://www.npmjs.com/package/mantic.sh)
 [![Install in Cursor](https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjogInN0ZGlvIiwgImNvbW1hbmQiOiAibnB4IiwgImFyZ3MiOiBbIi15IiwgIm1hbnRpYy5zaEBsYXRlc3QiLCAic2VydmVyIl19)
 [![Install in VS Code](https://img.shields.io/badge/VS%20Code-Install-007ACC?style=flat-square&logo=visual-studio-code&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22mantic.sh%40latest%22%2C%20%22server%22%5D%7D)
 [![Agent Rules](https://img.shields.io/badge/Agent%20Rules-Copy%20Config-8A2BE2?style=flat-square&logo=robot&logoColor=white)](https://github.com/marcoaapfortes/Mantic.sh/blob/main/AGENT_RULES.md)
+[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-Setup%20Guide-D94F30?style=flat-square&logo=anthropic&logoColor=white)](#mcp-server-installation)
 
 A structural code search engine for AI agents. Provides sub-500ms file ranking across massive codebases without embeddings, vector databases, or external dependencies.
 
@@ -21,7 +22,9 @@ A structural code search engine for AI agents. Provides sub-500ms file ranking a
 - [About the Project](#about-the-project)
 - [Proprietary vs Mantic](#proprietary-vs-mantic-cost-analysis)
 - [Features](#features)
-- [Installation](#installation)
+- [Installation (CLI & MCP)](#installation)
+  - [CLI Installation](#cli-installation)
+  - [MCP Server Installation](#mcp-server-installation)
 - [Usage](#usage)
 - [Agent Rules](#agent-rules-auto-pilot)
 - [Performance](#performance)
@@ -59,16 +62,14 @@ For a team of 100 developers performing 100 searches per day:
 
 ## Installation
 
-### Quick Start
+### CLI Installation
+
+**Quick Start** (no installation required):
 
 ```bash
-# Run without installation
+# Run directly with npx
 npx mantic.sh@latest "your search query"
 ```
-
-**Install for Tools:**
-- [Install in Cursor](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjogInN0ZGlvIiwgImNvbW1hbmQiOiAibnB4IiwgImFyZ3MiOiBbIi15IiwgIm1hbnRpYy5zaEBsYXRlc3QiLCAic2VydmVyIl19)
-- [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22mantic.sh%40latest%22%2C%20%22server%22%5D%7D)
 
 **From Source**:
 
@@ -79,6 +80,37 @@ npm install
 npm run build
 npm link
 ```
+
+### MCP Server Installation
+
+Mantic works as an MCP (Model Context Protocol) server for Claude Desktop, Cursor, VS Code, and other MCP-compatible tools.
+
+**One-Click Install:**
+- [Install in Cursor](https://cursor.com/en/install-mcp?name=mantic&config=eyJ0eXBlIjogInN0ZGlvIiwgImNvbW1hbmQiOiAibnB4IiwgImFyZ3MiOiBbIi15IiwgIm1hbnRpYy5zaEBsYXRlc3QiLCAic2VydmVyIl19)
+- [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=mantic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22mantic.sh%40latest%22%2C%20%22server%22%5D%7D)
+
+**Manual Configuration** (for Claude Desktop or other MCP clients):
+
+Add this to your MCP settings file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "mantic": {
+      "command": "npx",
+      "args": ["-y", "mantic.sh@latest", "server"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop, and Mantic will be available as the `search_codebase` tool.
+
+**For IDE Users (Cursor/VS Code):**
+
+If you're using Mantic in an IDE rather than Claude Desktop, you can also add the [Agent Rules](https://github.com/marcoaapfortes/Mantic.sh/blob/main/AGENT_RULES.md) to your IDE's system prompt or "Rules for AI" section. This teaches the AI to automatically use Mantic before writing code. (Note: Agent Rules are for IDEs only, not needed for Claude Desktop)
 
 ## Usage
 
