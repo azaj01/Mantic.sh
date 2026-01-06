@@ -7,11 +7,11 @@
 
 A structural code search engine for AI agents. Provides sub-500ms file ranking across massive codebases without embeddings, vector databases, or external dependencies.
 
-## What's New in v1.0.10
+## What's New in v1.0.11
 
-- **Critical Fix**: Test configuration files (setupVitest.ts, vitest.workspace.ts) now properly classified as test files instead of config files
-- **Improved Ranking**: Relevant code files now consistently rank above test infrastructure files
-- **Scoring Accuracy**: Removed penalties that caused keyword-matching files to receive negative scores
+- **Critical Fix**: Removed broken fallback scoring logic that assigned scores as `100 - index`, causing files at position 900+ in large repositories to receive massive negative scores (-900 to -9527)
+- **Error Handling**: Scanner now throws explicit error if scoring fails instead of silently producing incorrect results
+- **Improved Reliability**: All files now receive proper scores from SmartFilter or BrainInspiredScorer
 
 ## Table of Contents
 
