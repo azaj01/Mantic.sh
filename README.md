@@ -7,11 +7,11 @@
 
 A structural code search engine for AI agents. Provides sub-500ms file ranking across massive codebases without embeddings, vector databases, or external dependencies.
 
-## What's New in v1.0.6 🚀
+## What's New in v1.0.10
 
-- **Git Accelerator**: Replaced file walker with direct `git ls-files` integration.
-- **14x Performance Boost**: Chromium repo scan improved from ~6.6s to **0.46s**.
-- **Smart Heuristics**: optimized untracked file scanning for massive repositories.
+- **Critical Fix**: Test configuration files (setupVitest.ts, vitest.workspace.ts) now properly classified as test files instead of config files
+- **Improved Ranking**: Relevant code files now consistently rank above test infrastructure files
+- **Scoring Accuracy**: Removed penalties that caused keyword-matching files to receive negative scores
 
 ## Table of Contents
 
