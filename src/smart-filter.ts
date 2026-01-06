@@ -409,9 +409,8 @@ export class SmartFilter {
                         fileData.score += 30; // BIG boost for actively used files
                         fileData.matchedConstraints.push('actively-used');
                     } else {
-                        // PENALTY: Unused files get negative score to deprioritize them
-                        fileData.score -= 50;
-                        fileData.matchedConstraints.push('unused-file');
+                        // NO PENALTY: Unused files should not be penalized (too risky on cold cache)
+                        // fileData.score -= 50; 
                     }
                 }
                 break;

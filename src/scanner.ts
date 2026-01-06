@@ -27,6 +27,7 @@ const IGNORE_PATTERNS = [
     '**/Desktop/**',
     '**/Documents/**', // Only if nested deeply
     '**/.mantic/**', // Ignore our own cache directory
+    '**/.promptpro/**', // Ignore legacy cache directory
     // Python
     '**/venv/**',
     '**/.venv/**',
