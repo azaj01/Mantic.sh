@@ -1,6 +1,6 @@
 {
   "name": "mantic.sh",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "The reference implementation of mantic code search.",
   "main": "dist/index.js",
   "bin": {
