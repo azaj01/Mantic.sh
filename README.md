@@ -8,7 +8,7 @@
 
 A structural code search engine for AI agents. Provides sub-500ms file ranking across massive codebases without embeddings, vector databases, or external dependencies.
 
-## What's New in v1.0.16
+## What's New in v1.0.18
 
 - **Native Accelerator**: Replaced `fast-glob` with `git ls-files` / `fd` for **15x faster file scanning** (cold start on Chromium dropped from 30s to <2s).
 - **Parallel Processing Engine**: Dedicated worker threads for scoring large repositories (50k+ files).
