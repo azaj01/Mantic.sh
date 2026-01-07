@@ -143,6 +143,7 @@ export interface ScanOptions {
     intentAnalysis?: IntentAnalysis; // Optional intent-based filtering
     onProgress?: (message: string) => void; // Progress callback
     sessionBoosts?: Array<{ path: string; boostFactor: number; reason: string }>; // Phase 2: Session memory
+    skipScoring?: boolean; // Defer scoring to caller (e.g. for parallelization)
 }
 
 // Intent-based scanning types

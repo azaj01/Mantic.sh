@@ -10,6 +10,7 @@ import { classifyFile } from './file-classifier.js';
 import { FileType } from './types.js';
 import { buildDependencyGraph } from './dependency-graph.js';
 import { analyzeMultipleImpacts } from './impact-analyzer.js';
+import { ParallelMantic } from './parallel-mantic.js';
 
 export async function processRequest(userPrompt: string, options: any): Promise<string> {
     const startTime = Date.now();
@@ -32,25 +33,62 @@ export async function processRequest(userPrompt: string, options: any): Promise<
         const projectContext = await scanProject(process.cwd(), {
             intentAnalysis,
             parseSemantics: false,
-            onProgress: undefined
+            onProgress: undefined,
+            skipScoring: true // Defer scoring to processRequest for parallelization support
         });
 
         const scanTimeMs = Date.now() - startTime;
 
-        // Use real brain scorer scores if available, otherwise fallback
-        let scoredFiles = projectContext.scoredFiles?.map((sf) => {
-            const fileType = classifyFile(sf.path);
+        // Use ManticEngine scores (Parallel or Single-Threaded)
+        let scoredFilesFn: () => Promise<any[]>;
+        const allFiles = projectContext.fileStructure;
+
+        // Threshold for parallelization
+        if (allFiles.length > 50000) {
+            console.error(`⚡ Large repo detected (${allFiles.length} files). Switching to Parallel Mantic Engine...`);
+            const parallelEngine = new ParallelMantic(allFiles);
+
+            scoredFilesFn = async () => {
+                const results = await parallelEngine.search(intentAnalysis.keywords.join(' '));
+                parallelEngine.terminate();
+                return results;
+            };
+        } else {
+            // Standard V2 Engine (Fast enough for <50k files)
+            scoredFilesFn = async () => {
+                // Reuse the existing scores from scanner context or re-run lightly
+                if (projectContext.scoredFiles && projectContext.scoredFiles.length > 0) {
+                    return projectContext.scoredFiles;
+                }
+
+                // If scanner skipped scoring, we must do it validly here (Single Threaded for <50k)
+                const { ManticEngine } = await import('./brain-scorer.js');
+                const engine = new ManticEngine();
+                // Note: rankFiles expects files, keywords, intent, cwd
+                return engine.rankFiles(allFiles, intentAnalysis.keywords, intentAnalysis, process.cwd());
+            };
+        }
+
+        const rawResults = await scoredFilesFn();
+
+        let scoredFiles = rawResults.map((sf) => {
+            // Handle both result shapes (Parallel returns {file, score}, Scanner returns {path, score})
+            const pathStr = sf.path || sf.file;
+            const scoreVal = sf.score;
+            const reasons = sf.reasons || (sf.matchType ? [sf.matchType] : []);
+
+            const fileType = classifyFile(pathStr);
             return {
-                path: sf.path,
-                score: sf.score,
-                matchedConstraints: sf.reasons,
+                path: pathStr,
+                score: scoreVal,
+                matchedConstraints: reasons,
                 isImported: false,
                 isExported: false,
                 fileType,
                 matchedLines: projectContext.fileLocations
-                    ?.find(fl => fl.path === sf.path)
+                    ?.find(fl => fl.path === pathStr)
                     ?.lines?.map(l => ({ line: l.line, content: l.content, keyword: l.keyword })),
-                metadata: sf.metadata // Pass through progressive disclosure metadata
+                metadata: sf.metadata
             };
         });
 

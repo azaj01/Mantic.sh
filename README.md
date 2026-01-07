@@ -8,13 +8,13 @@
 
 A structural code search engine for AI agents. Provides sub-500ms file ranking across massive codebases without embeddings, vector databases, or external dependencies.
 
-## What's New in v1.0.15
+## What's New in v1.0.16
 
-- **Chromium Support**: Fixed timeout bug - now handles 481k+ file repos (increased default timeout to 30s)
-- **Improved Ranking**: Two-pass scoring with function/class name extraction - exact matches now rank first
-- **Multi-Language Support**: Added patterns for Python (`def`), Rust (`fn`), and Go (`func`)
-- **Configurable Limits**: New `MANTIC_FUNCTION_SCAN_LIMIT` env var for tuning accuracy vs performance
-- **Better Keyword Matching**: Handles camelCase, snake_case, and individual keyword matching
+- **Native Accelerator**: Replaced `fast-glob` with `git ls-files` / `fd` for **15x faster file scanning** (cold start on Chromium dropped from 30s to <2s).
+- **Parallel Processing Engine**: Dedicated worker threads for scoring large repositories (50k+ files).
+- **Process Optimization**: Fixed CLI hang issues, ensuring instant exit after results.
+- **Prefix-Based Filtering**: Optimized ignore pattern matching for massive file lists.
+- **Improved Semantic Matches**: Better handling of deep path intent.
 
 ## Table of Contents
 
@@ -152,7 +152,7 @@ Want Cursor or Claude to use Mantic automatically?
 | Codebase | Files | Size | Mantic | Vector Search | Improvement |
 |----------|-------|------|--------|---|---|
 | Cal.com | 9,621 | ~500MB | 0.32s | 0.85s | **2.7x faster** |
-| Chromium | 480,000 | 59GB | 0.46s | 5-10s | **11-22x faster** |
+| Chromium | 480,000 | 59GB | 0.40s | 5-10s | **12-25x faster** |
 
 ## How It Works
 
@@ -198,25 +198,32 @@ MANTIC_FUNCTION_SCAN_LIMIT=30 # Top files to scan for function names (default: d
 
 ## License
 
-Mantic is licensed under the **AGPL-3.0 License**.
+Mantic.sh is **Dual Licensed** to support both open access and sustainable development.
 
-### What This Means
+### 1. AGPL-3.0 (Open Source & Internal Use)
+**Ideal for**: Individuals, Internal Business Tools, Open Source Projects.
 
-**You can:**
-- ✅ Use Mantic commercially (in products you sell, as a hosted service, etc.)
-- ✅ Modify the source code
-- ✅ Distribute copies
-- ✅ Use it privately
+- **Free for internal use** (e.g., using Mantic.sh CLI in your company's dev team).
+- **Free for open source** (integrating into other AGPL/GPL projects).
+- **Requirement**: If you distribute Mantic.sh (or a modified version) as part of your own application (e.g., embedding it in a proprietary IDE or SaaS), you **must open-source your entire application** under AGPL-3.0. For hosted services, users must have access to the modified source code.
 
-**You must:**
-- 📖 Provide the source code to users if you distribute Mantic or run it as a network service
-- 📖 Keep the AGPL-3.0 license and copyright notices
-- 📖 Disclose any modifications you make
+### 2. Commercial License (Proprietary & Embedding)
+**Ideal for**: Commercial IDEs, SaaS Platforms, Proprietary Products.
 
-**In practice:**
-- If you embed Mantic in a proprietary product or SaaS, you must open-source your modifications
-- If you want to keep your modifications private, contact us about a commercial license
+- **Embed Mantic.sh** in proprietary software (e.g., VS Code forks, AI Agents, SaaS tools).
+- **No open-source requirement** (keep your source code private).
+- **Support & Indemnification**: Priority email support and legal indemnification included.
 
-**Commercial License Inquiries:** [license@mantic.sh](mailto:license@mantic.sh)
+**Pricing**:
+- **Internal Use**: Free (under AGPL-3.0).
+- **Commercial Integration**: Contact for pricing (starts at $500/year, based on usage).
 
-See [LICENSE](LICENSE) file for full legal terms.
+**Enforcement**:
+All derivatives must comply with AGPL-3.0 unless under a commercial license. Unauthorized copying or rewrites may violate copyright laws.
+
+**Contributing**:
+To maintain the dual-license model, all contributors must sign a Contributor License Agreement (CLA) granting relicensing rights.
+
+**Contact**: [license@mantic.sh](mailto:license@mantic.sh)
+
+See [LICENSE](LICENSE) for the full AGPL-3.0 terms.

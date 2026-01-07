@@ -47,6 +47,7 @@ program
 
         const { processRequest } = await import('./process-request.js');
         await processRequest(query, options);
+        process.exit(0);
     });
 
 // Session management commands

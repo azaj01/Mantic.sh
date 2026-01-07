@@ -7,8 +7,9 @@ import { FileParser } from './parser.js';
 import { classifyProject } from './project-classifier.js';
 import { SmartFilter } from './smart-filter.js';
 import { getGitState, isGitRepo, getGitFiles } from './git-utils.js';
-import { BrainInspiredScorer } from './brain-scorer.js';
+import { ManticEngine } from './brain-scorer.js';
 import { getFileMetadataBatch, calculateConfidence } from './file-metadata.js';
+import { NativeLoader } from './native-loader.js';
 
 // Files to ignore to keep context clean and avoid system folders
 const IGNORE_PATTERNS = [
@@ -201,7 +202,7 @@ async function scanProjectInternal(
 
     // If cache disabled or semantics not needed, use fast legacy scan
     if (!useCache || !parseSemantics) {
-        return scanProjectLegacyInternal(cwd, intentAnalysis, onProgress, sessionBoosts);
+        return scanProjectLegacyInternal(cwd, intentAnalysis, onProgress, sessionBoosts, options.skipScoring);
     }
 
     const startTime = Date.now();
@@ -225,7 +226,7 @@ async function scanProjectInternal(
 
     // Skip to legacy scan if lazy mode enabled
     if (shouldUseLazyMode) {
-        return scanProjectLegacyInternal(cwd, intentAnalysis, onProgress, sessionBoosts);
+        return scanProjectLegacyInternal(cwd, intentAnalysis, onProgress, sessionBoosts, options.skipScoring);
     }
 
     // Try to load cache
@@ -252,46 +253,13 @@ async function scanProjectInternal(
     }
 
     // Get current file list
-    let files: string[] = [];
+    // Get current file list using Native Loader (Git/Fd/Glob)
+    // This handles caching regexes and selecting the fastest binary
+    const loader = new NativeLoader(getIgnorePatterns());
+    let files = await loader.loadFiles(cwd);
 
-    // GIT ACCELERATOR: Use git ls-files if available (50x faster)
-    if (isGitRepo(cwd)) {
-        try {
-            const gitFiles = getGitFiles(cwd);
-            // Apply ignore patterns to git files (since git files include everything git tracks)
-            // But we might want to respect MANTIC_IGNORE_PATTERNS even for git files
-            const ignorePatterns = getIgnorePatterns();
-            // We only need to filter if there are custom patterns or if we want to enforce default ignores on git files
-            // (Usually gitignore handles default ignores, but MANTIC_IGNORE_PATTERNS are extra)
-
-            if (process.env.MANTIC_IGNORE_PATTERNS) {
-                files = gitFiles.filter(file => !matchesAnyPattern(file, ignorePatterns));
-            } else {
-                // Default behavior: trust gitignore for git files, but maybe we still want to filter our internal ignores?
-                // The original code didn't filter git files with IGNORE_PATTERNS. 
-                // It just used getGitFiles(cwd).
-                // IF we want to support MANTIC_IGNORE_PATTERNS, we MUST filter.
-                files = gitFiles.filter(file => !matchesAnyPattern(file, ignorePatterns));
-            }
-
-            progress(`Using Git Accelerator (${files.length.toLocaleString()} files)`);
-        } catch {
-            // Fallback to fast-glob
-        }
-    }
-
-    // Fallback to fast-glob if not git or git failed
-    if (files.length === 0) {
-        files = await fg(['**/*'], {
-            cwd,
-            ignore: IGNORE_PATTERNS,
-            dot: true,
-            onlyFiles: true,
-            suppressErrors: true,
-            followSymbolicLinks: false, // CRITICAL: Do not follow symlinks to outside folders
-            deep: 10
-        });
-    }
+    // Fallback logic handled internally by loader
+    progress(`Scanned ${files.length.toLocaleString()} files using NativeLoader`);
 
     // Analyze directory structure (Disabled for performance test)
     // const dirStats = analyzeDirectoryStructure(files);
@@ -466,7 +434,7 @@ async function scanProjectInternal(
 
     // Low confidence or general query - use brain scorer directly
     const keywords = intentAnalysis?.keywords || [];
-    const brainScorer = new BrainInspiredScorer(undefined, options.sessionBoosts);
+    const brainScorer = new ManticEngine();
     const scoredFiles = await brainScorer.rankFiles(
         files,
         keywords,
@@ -509,7 +477,8 @@ async function scanProjectLegacyInternal(
     cwd: string,
     intentAnalysis?: IntentAnalysis,
     onProgress?: (msg: string) => void,
-    sessionBoosts?: Array<{ path: string; boostFactor: number; reason: string }>
+    sessionBoosts?: Array<{ path: string; boostFactor: number; reason: string }>,
+    skipScoring = false
 ): Promise<ProjectContext> {
     const startTime = Date.now();
 
@@ -518,31 +487,11 @@ async function scanProjectLegacyInternal(
     };
 
     // 1. Get File Structure
-    let files: string[] = [];
+    // 1. Get File Structure using Native Loader
+    const loader = new NativeLoader(getIgnorePatterns());
+    let files = await loader.loadFiles(cwd);
 
-    // GIT ACCELERATOR: Use git ls-files if available (50x faster)
-    if (isGitRepo(cwd)) {
-        try {
-            const gitFiles = getGitFiles(cwd);
-            // Apply ignore patterns
-            const ignorePatterns = getIgnorePatterns();
-            files = gitFiles.filter(file => !matchesAnyPattern(file, ignorePatterns));
-        } catch {
-            // Fallback
-        }
-    }
-
-    if (files.length === 0) {
-        files = await fg(['**/*'], {
-            cwd,
-            ignore: getIgnorePatterns(),
-            dot: true,
-            onlyFiles: true,
-            suppressErrors: true,
-            followSymbolicLinks: false,
-            deep: 10
-        });
-    }
+    progress(`Scanned ${files.length.toLocaleString()} files using NativeLoader`);
 
     // Analyze directory structure (Disabled for performance test)
     // const dirStats = analyzeDirectoryStructure(files);
@@ -561,9 +510,10 @@ async function scanProjectLegacyInternal(
     if (intentAnalysis && intentAnalysis.confidence > 0.5) {
         // High confidence - use brain scorer with intent
         const keywords = intentAnalysis.keywords || [];
-        if (keywords.length > 0) {
+
+        if (keywords.length > 0 && !skipScoring) {
             progress('Applying brain-inspired scoring (high confidence)...');
-            const brainScorer = new BrainInspiredScorer(undefined, sessionBoosts);
+            const brainScorer = new ManticEngine();
             const scoredFiles = await brainScorer.rankFiles(
                 files,
                 keywords,
@@ -582,9 +532,9 @@ async function scanProjectLegacyInternal(
         // Low confidence or no intent - use brain scorer with available keywords
         const keywords = intentAnalysis?.keywords || [];
 
-        if (keywords.length > 0 && intentAnalysis) {
+        if (keywords.length > 0 && intentAnalysis && !skipScoring) {
             progress('Applying brain-inspired scoring...');
-            const brainScorer = new BrainInspiredScorer(undefined, sessionBoosts);
+            const brainScorer = new ManticEngine();
             const scoredFiles = await brainScorer.rankFiles(
                 files,
                 keywords,
@@ -595,9 +545,14 @@ async function scanProjectLegacyInternal(
             limitedFiles = scoredFiles.map(f => f.path);
             progress(`Brain scoring: ${files.length} → ${scoredFiles.length} files`);
         } else {
-            // No keywords at all - just take first 300 files
-            limitedFiles = files.slice(0, getMaxFiles());
-            progress(`Using first 300 files (no keywords provided)`);
+            // No keywords at all - just take first 300 files (unless skipScoring is set, then take all)
+            if (skipScoring) {
+                limitedFiles = files;
+                progress(`Passing ${files.length} files to processRequest (skipScoring=true)`);
+            } else {
+                limitedFiles = files.slice(0, getMaxFiles());
+                progress(`Using first 300 files (no keywords provided)`);
+            }
         }
     }
 
