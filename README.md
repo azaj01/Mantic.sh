@@ -200,11 +200,23 @@ MANTIC_FUNCTION_SCAN_LIMIT=30 # Top files to scan for function names (default: d
 
 Mantic is licensed under the **AGPL-3.0 License**.
 
-### Usage Guidelines
+### What This Means
 
-- **Free for:** Individual developers, open source projects, and internal business use.
-- **License required for:** Commercial embedding in products you sell or offering Mantic as a hosted service.
+**You can:**
+- ✅ Use Mantic commercially (in products you sell, as a hosted service, etc.)
+- ✅ Modify the source code
+- ✅ Distribute copies
+- ✅ Use it privately
 
-**Commercial Inquiries:** [license@mantic.sh](mailto:license@mantic.sh)
+**You must:**
+- 📖 Provide the source code to users if you distribute Mantic or run it as a network service
+- 📖 Keep the AGPL-3.0 license and copyright notices
+- 📖 Disclose any modifications you make
 
-See [LICENSE](LICENSE) file for full details.
+**In practice:**
+- If you embed Mantic in a proprietary product or SaaS, you must open-source your modifications
+- If you want to keep your modifications private, contact us about a commercial license
+
+**Commercial License Inquiries:** [license@mantic.sh](mailto:license@mantic.sh)
+
+See [LICENSE](LICENSE) file for full legal terms.
