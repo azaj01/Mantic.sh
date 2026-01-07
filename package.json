@@ -1,6 +1,6 @@
 {
   "name": "mantic.sh",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "A structural code search engine for AI agents.",
   "main": "dist/index.js",
   "bin": {
