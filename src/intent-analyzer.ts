@@ -133,24 +133,34 @@ export class IntentAnalyzer {
      * Extract meaningful keywords from user prompt
      *
      * CRITICAL: Preserve filenames like "nc-project", "app-sidebar"
+     * CRITICAL: Preserve file extensions like ".h", ".cc", ".ts"
      * Users often say "in the file nc-project" and we need to match exactly!
      */
     private extractKeywords(prompt: string): string[] {
         const keywords: string[] = [];
 
-        // 1. Extract filename patterns (kebab-case, PascalCase)
+        // 1. Extract file extensions FIRST (before tokenizing)
+        // Match patterns like ".h", ".cc", ".ts", ".tsx"
+        const extensionPattern = /\.[a-z]{1,4}\b/gi;
+        const extensions = prompt.match(extensionPattern) || [];
+        extensions.forEach(ext => {
+            keywords.push(ext.toLowerCase());
+        });
+
+        // 2. Extract filename patterns (kebab-case, PascalCase)
         const filenamePattern = /\b([a-z]+-[a-z0-9-]+|[A-Z][a-zA-Z]+)\b/g;
         const filenames = prompt.match(filenamePattern) || [];
         filenames.forEach(name => {
             keywords.push(name.toLowerCase());
         });
 
-        // 2. Tokenize remaining text: split on non-alphanumeric BUT preserve hyphens in filenames
+        // 3. Tokenize remaining text: split on non-alphanumeric BUT preserve hyphens in filenames
         const tokens = prompt
             .toLowerCase()
+            .replace(/\.[a-z]{1,4}\b/gi, '') // Remove extensions (already extracted)
             .replace(/ing\b|ed\b|s\b|es\b/g, '') // Simple stemming
             .split(/[^a-z0-9-]+/)  // Keep hyphens
-            .filter(token => token.length > 2);
+            .filter(token => token.length >= 2);  // Allow 2-char tokens (v8, gc, io, fs, etc)
 
         // Filter out stop words and already-added filenames
         tokens.forEach(token => {

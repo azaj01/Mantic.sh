@@ -21,6 +21,7 @@ const SearchFilesSchema = z.object({
   filter: z.enum(['code', 'config', 'test', 'all']).optional().default('code').describe('File type filter'),
   maxResults: z.number().optional().default(20).describe('Maximum number of files to return (default: 20)'),
   includeImpact: z.boolean().optional().default(false).describe('Include impact analysis (blast radius, dependents)'),
+  sessionId: z.string().optional().describe('Session ID to enable context carryover (boosts previously viewed files)'),
 });
 
 const AnalyzeIntentSchema = z.object({
@@ -57,6 +58,10 @@ const SessionRecordViewSchema = z.object({
   cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
 });
 
+const GetContextSchema = z.object({
+  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+});
+
 // Create MCP server instance
 const server = new Server(
   {
@@ -79,7 +84,7 @@ const TOOLS = [
       'Uses brain-inspired scoring to prioritize business logic over boilerplate. ' +
       'Returns file paths with relevance scores, metadata, and optional impact analysis. ' +
       'Perfect for finding where specific functionality is implemented and understanding ' +
-      'blast radius before making changes.',
+      'blast radius before making changes. Supports context carryover when sessionId is provided.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,6 +111,10 @@ const TOOLS = [
           type: 'boolean',
           description: 'Include impact analysis showing blast radius and dependents (default: false)',
           default: false,
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Session ID to enable context carryover (boosts previously viewed files)',
         },
       },
       required: ['query'],
@@ -239,6 +248,22 @@ const TOOLS = [
       required: ['sessionId', 'files'],
     },
   },
+  {
+    name: 'get_context',
+    description:
+      'Proactive context detection (zero-query mode). ' +
+      'Shows current working context by analyzing recently modified files, related dependencies, ' +
+      'impact analysis, and suggested next steps. Run this when starting work or when unsure what to focus on.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: {
+          type: 'string',
+          description: 'Working directory (defaults to current directory)',
+        },
+      },
+    },
+  },
 ];
 
 // Register tool list handler
@@ -253,7 +278,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'search_files': {
-        const { query, cwd, filter, maxResults, includeImpact } = SearchFilesSchema.parse(args);
+        const { query, cwd, filter, maxResults, includeImpact, sessionId } = SearchFilesSchema.parse(args);
 
         const workDir = cwd || process.cwd();
 
@@ -268,6 +293,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Add impact analysis flag
         if (includeImpact) cmd += ' --impact';
+
+        // Add session flag for context carryover
+        if (sessionId) cmd += ` --session "${sessionId}"`;
 
         // Execute and capture output
         const output = execSync(cmd, {
@@ -575,6 +603,97 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'get_context': {
+        const { cwd } = GetContextSchema.parse(args);
+        const workDir = cwd || process.cwd();
+
+        // Run zero-query mode (empty query)
+        const ppPath = path.join(__dirname, 'index.js');
+        const cmd = `node "${ppPath}" "" --json`;
+
+        const output = execSync(cmd, {
+          cwd: workDir,
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000,
+          env: { ...process.env, NO_COLOR: '1' },
+        });
+
+        const result = JSON.parse(output);
+
+        if (result.mode !== 'zero-query') {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No active context detected. Start by editing files or make some changes.',
+              },
+            ],
+          };
+        }
+
+        // Format zero-query context for display
+        const resultLines = [
+          'Working Context',
+          '',
+          `Topic: ${result.context.topic}`,
+          `Confidence: ${Math.round(result.context.confidence * 100)}%`,
+          '',
+        ];
+
+        if (result.modified && result.modified.length > 0) {
+          resultLines.push(`Recently Modified Files (${result.modified.length}):`);
+          result.modified.slice(0, 10).forEach((file: any) => {
+            resultLines.push(`  ${file.path} [${file.status}]`);
+          });
+          resultLines.push('');
+        }
+
+        if (result.related && result.related.length > 0) {
+          resultLines.push(`Related Files (${result.related.length}):`);
+          result.related.slice(0, 10).forEach((file: any) => {
+            resultLines.push(`  ${file.path} [${file.priority}]`);
+            resultLines.push(`    Reason: ${file.reason}`);
+          });
+          resultLines.push('');
+        }
+
+        if (result.impact) {
+          resultLines.push('Impact Analysis:');
+          const blastRadius = typeof result.impact.blast_radius === 'string'
+            ? result.impact.blast_radius.toUpperCase()
+            : 'N/A';
+          resultLines.push(`  Blast Radius: ${blastRadius}`);
+          resultLines.push(`  Affected Files: ${result.impact.affected_files}`);
+          resultLines.push(`  Risk: ${result.impact.risk_assessment}`);
+          resultLines.push('');
+        }
+
+        if (result.suggestions && result.suggestions.next_steps && result.suggestions.next_steps.length > 0) {
+          resultLines.push('Suggested Next Steps:');
+          result.suggestions.next_steps.forEach((suggestion: string) => {
+            resultLines.push(`  - ${suggestion}`);
+          });
+          resultLines.push('');
+        }
+
+        if (result.session) {
+          resultLines.push(`Session: ${result.session.id}`);
+          if (result.session.auto_started) {
+            resultLines.push('(Auto-started based on file activity)');
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: resultLines.join('\n'),
+            },
+          ],
+        };
+      }
+
       default:
         return {
           content: [
@@ -609,7 +728,7 @@ export async function runServer() {
 
   // Log to stderr (STDIO servers must use stderr for logging)
   console.error('Mantic MCP Server running on stdio');
-  console.error('Available tools: search_files, analyze_intent, session_start, session_list, session_info, session_end, session_record_view');
+  console.error('Available tools: search_files, analyze_intent, get_context, session_start, session_list, session_info, session_end, session_record_view');
 }
 
 // Only run if called directly

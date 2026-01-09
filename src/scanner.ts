@@ -344,9 +344,24 @@ async function scanProjectInternal(
             contextFiles // Pass context files for boost!
         );
 
+        // Learn from successful searches (top result with score > 50)
+        if (scoredFiles.length > 0 && scoredFiles[0].score > 50) {
+            const topFile = scoredFiles[0];
+            await smartFilter.learnPattern(
+                intentAnalysis.keywords,
+                topFile.matchedConstraints.map(c => ({
+                    type: c.includes('keyword') ? 'keyword' : c.includes('path') ? 'path' : 'export',
+                    value: '',
+                    cost: 1,
+                    selectivity: 0.5
+                })),
+                topFile.path
+            );
+        }
+
         // Get top files, prioritizing imports/exports
         // CRITICAL: If context was applied with VERY high confidence (>75%), ONLY show context files
-        // User clearly wants to continue in the same area, not expand to other files
+        // High confidence indicates user intent is focused on the same area
         if (contextFiles && contextFiles.length > 0 && contextRelevance && contextRelevance.confidence > 0.75) {
             // High confidence follow-up: filter to ONLY context files
             files = scoredFiles
@@ -416,7 +431,7 @@ async function scanProjectInternal(
             });
         }
 
-        // Return ProjectContext with filtered files, metadata, and exact locations!
+        // Return ProjectContext with filtered files, metadata, and exact locations
         return {
             techStack: cache.techStack,
             fileStructure: files.slice(0, maxFiles),
@@ -524,8 +539,8 @@ async function scanProjectLegacyInternal(
             limitedFiles = scoredFiles.map(f => f.path);
             progress(`Brain scoring: ${files.length} → ${scoredFiles.length} files`);
         } else {
-            // No keywords - just take first 300 files
-            // FIX: Do NOT slice here. Pass all files to scorer or just return them if skipping scoring.
+            // No keywords - pass all files to scorer
+            // FIX: Do NOT slice here. Pass all files to scorer or return them if skipping scoring.
             // limitedFiles = files.slice(0, getMaxFiles());
             limitedFiles = files;
             progress(`Using all ${files.length} files (no high-confidence intent)`);

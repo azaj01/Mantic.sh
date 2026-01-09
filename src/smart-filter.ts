@@ -118,8 +118,8 @@ export class SmartFilter {
             projectRoot
         );
 
-        // 4.5. RECENCY BOOST: Files you just modified are probably what you're working on!
-        // Perfect for "vibe coders" who don't commit but DO edit files
+        // 4.5. RECENCY BOOST: Recently modified files receive priority
+        // Effective for detecting active work without relying on git commits
         const recentFiles = await this.getRecentlyModifiedFiles(cache);
         if (recentFiles.size > 0) {
             const scoredMap = new Map(scoredFiles.map(f => [f.path, f]));
@@ -143,7 +143,7 @@ export class SmartFilter {
             .slice(0, 50);
 
         // 6. CRITICAL: Find exact line numbers for top 10 results
-        // This is the REAL value of Mantic - giving exact locations!
+        // Core value: providing precise code locations
         // For UI tasks like "rename share button", focus on PRIMARY keyword ("share")
         // not generic ones ("button", "copy", "link")
         const primaryKeyword = this.getPrimaryKeyword(keywords);
@@ -383,7 +383,7 @@ export class SmartFilter {
             case 'path':
                 // Check if keyword appears in file path
                 // CRITICAL: If user mentions a specific filename like "nc-project",
-                // give it HUGE boost to prioritize exact matches!
+                // apply significant boost to prioritize exact matches
                 for (const [filePath, fileData] of scored.entries()) {
                     const fileName = path.basename(filePath, path.extname(filePath));
 
@@ -472,11 +472,11 @@ export class SmartFilter {
             if (genericTerms.has(lower)) continue;
 
             // Skip filename-like patterns (kebab-case, PascalCase)
-            // These are for file matching, not content search!
+            // These are for file matching, not content search
             if (/^[a-z]+-[a-z0-9-]+$/i.test(keyword)) continue; // nc-project, app-sidebar
             if (/^[A-Z][a-zA-Z]+$/.test(keyword)) continue; // ShareButton, AppSidebar
 
-            // This is a content keyword!
+            // This is a content keyword
             return keyword;
         }
 
@@ -648,7 +648,7 @@ export class SmartFilter {
                 keyword: m.keyword
             }));
         } catch (error) {
-            // If file read fails, just skip line detection
+            // If file read fails, skip line detection
             scoredFile.matchedLines = [];
         }
     }

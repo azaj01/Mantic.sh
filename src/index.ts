@@ -34,12 +34,14 @@ program
     .action(async (queryParts, options) => {
         const query = queryParts.join(' ');
 
-        if (!query) {
-            console.error('Error: Query required');
-            console.error('Usage: pp <query> [options]');
-            console.error('Example: pp "stripe payment" --code --json');
-            process.exit(1);
-        }
+        // Allow empty query for zero-query mode
+        // if (!query) {
+        //     console.error('Error: Query required');
+        //     console.error('Usage: mantic <query> [options]');
+        //     console.error('Example: mantic "stripe payment" --code --json');
+        //     console.error('Tip: Run "mantic" with no arguments to see your current context');
+        //     process.exit(1);
+        // }
 
         // Default to JSON output (machine-first)
         if (!options.json && !options.files && !options.markdown && !options.mcp) {

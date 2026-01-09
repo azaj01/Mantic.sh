@@ -13,6 +13,33 @@ import { analyzeMultipleImpacts } from './impact-analyzer.js';
 import { ParallelMantic } from './parallel-mantic.js';
 
 import * as path from 'path';
+import * as fs from 'fs';
+
+/**
+ * Calculate progressive disclosure metadata for a file
+ */
+async function calculateFileMetadata(filePath: string, targetDir: string, maxScore: number, fileScore: number): Promise<any> {
+    try {
+        const fullPath = path.join(targetDir, filePath);
+        const stats = await fs.promises.stat(fullPath);
+        const content = await fs.promises.readFile(fullPath, 'utf8');
+        const lines = content.split('\n').length;
+        const estimatedTokens = lines * 4;
+
+        const confidence = maxScore > 0 ? Math.min(1.0, fileScore / maxScore) : 0.5;
+
+        return {
+            sizeBytes: stats.size,
+            lines,
+            estimatedTokens,
+            lastModified: stats.mtime.toISOString(),
+            created: stats.birthtime.toISOString(),
+            confidence: Math.round(confidence * 100) / 100
+        };
+    } catch (error) {
+        return undefined;
+    }
+}
 
 export async function processRequest(userPrompt: string, options: any): Promise<string> {
     const startTime = Date.now();
@@ -30,6 +57,70 @@ export async function processRequest(userPrompt: string, options: any): Promise<
                     : 'json'; // Default to JSON for machine-first
 
     try {
+        // ZERO-QUERY MODE: Proactive context detection
+        if (!userPrompt || userPrompt.trim() === '') {
+            const { ContextIntel } = await import('./context-intel.js');
+            const { getGitFiles } = await import('./git-utils.js');
+            const { formatZeroQueryContext } = await import('./context-formatter.js');
+
+            const contextIntel = new ContextIntel(targetDir);
+            const allFiles = getGitFiles(targetDir);
+
+            const zeroQueryContext = await contextIntel.buildContext(allFiles);
+
+            if (!zeroQueryContext) {
+                // No context available - return helpful message
+                const emptyResponse = {
+                    mode: 'zero-query',
+                    message: 'No active context detected. Start by editing files or try: mantic "your search query"',
+                    suggestion: 'Make some changes to files or start a session to enable context tracking'
+                };
+
+                if (outputFormat === 'json') {
+                    console.log(JSON.stringify(emptyResponse, null, 2));
+                } else {
+                    console.log('\nMantic Zero-Query Mode');
+                    console.log('No active context detected.');
+                    console.log('Tip: Start by editing files or try: mantic "your search query"\n');
+                }
+                return JSON.stringify(emptyResponse);
+            }
+
+            // Return zero-query context
+            const response = {
+                mode: 'zero-query',
+                ...zeroQueryContext
+            };
+
+            // Format output based on requested format
+            if (outputFormat === 'json') {
+                console.log(JSON.stringify(response, null, 2));
+            } else if (outputFormat === 'files') {
+                // For files-only mode, show modified + related files
+                const allPaths = [
+                    ...zeroQueryContext.modified.map((f: any) => f.path),
+                    ...zeroQueryContext.related.map((f: any) => f.path)
+                ];
+                console.log(allPaths.join('\n'));
+            } else {
+                // Pretty terminal output
+                console.log(formatZeroQueryContext(zeroQueryContext));
+            }
+
+            return JSON.stringify(response);
+        }
+        // PHASE 0: Load Session Context (if active)
+        let sessionContextFiles: string[] = [];
+        if (options.session) {
+            const { SessionManager } = await import('./session-manager.js');
+            const sm = new SessionManager(targetDir);
+            const session = await sm.loadSession(options.session);
+            if (session) {
+                // Get previously viewed files for context carryover
+                sessionContextFiles = Array.from(session.viewedFiles.keys());
+            }
+        }
+
         // PHASE 1: Analyze Intent
         const { IntentAnalyzer } = await import('./intent-analyzer.js');
         const intentAnalyzer = new IntentAnalyzer();
@@ -56,7 +147,9 @@ export async function processRequest(userPrompt: string, options: any): Promise<
             const parallelEngine = new ParallelMantic(allFiles);
 
             scoredFilesFn = async () => {
-                const results = await parallelEngine.search(intentAnalysis.keywords.join(' '));
+                // Use original prompt to preserve query structure (e.g., "download_manager.cc" not ".cc download manager")
+                const query = intentAnalysis.originalPrompt || intentAnalysis.keywords.join(' ');
+                const results = await parallelEngine.search(query);
                 parallelEngine.terminate();
                 return results;
             };
@@ -78,13 +171,18 @@ export async function processRequest(userPrompt: string, options: any): Promise<
 
         const rawResults = await scoredFilesFn();
 
-        let scoredFiles = rawResults.map((sf) => {
+        // Calculate max score for confidence calculation
+        const maxScore = rawResults.length > 0 ? Math.max(...rawResults.map(r => r.score)) : 0;
+
+        // Prepare file data without metadata first
+        const filesWithoutMetadata = rawResults.map((sf) => {
             // Handle both result shapes (Parallel returns {file, score}, Scanner returns {path, score})
             const pathStr = sf.path || sf.file;
             const scoreVal = sf.score;
             const reasons = sf.reasons || (sf.matchType ? [sf.matchType] : []);
 
             const fileType = classifyFile(pathStr);
+
             return {
                 path: pathStr,
                 score: scoreVal,
@@ -94,9 +192,23 @@ export async function processRequest(userPrompt: string, options: any): Promise<
                 fileType,
                 matchedLines: projectContext.fileLocations
                     ?.find(fl => fl.path === pathStr)
-                    ?.lines?.map(l => ({ line: l.line, content: l.content, keyword: l.keyword })),
-                metadata: sf.metadata
+                    ?.lines?.map(l => ({ line: l.line, content: l.content, keyword: l.keyword }))
             };
+        });
+
+        // Batch calculate metadata for top 100 files to avoid blocking on large result sets
+        const topFilesForMetadata = filesWithoutMetadata.slice(0, 100);
+        const metadataPromises = topFilesForMetadata.map(file =>
+            calculateFileMetadata(file.path, targetDir, maxScore, file.score)
+        );
+        const metadataResults = await Promise.all(metadataPromises);
+
+        // Attach metadata to files
+        let scoredFiles = filesWithoutMetadata.map((file, index) => {
+            if (index < 100) {
+                return { ...file, metadata: metadataResults[index] };
+            }
+            return { ...file, metadata: undefined };
         });
 
         // If scoredFiles is missing, something went wrong in the scanner
@@ -104,6 +216,16 @@ export async function processRequest(userPrompt: string, options: any): Promise<
             // Warn but don't crash - return empty array
             console.warn('Scanner produced no results.');
             scoredFiles = [];
+        }
+
+        // Apply context carryover boost for session files
+        if (sessionContextFiles.length > 0) {
+            scoredFiles.forEach(file => {
+                if (sessionContextFiles.includes(file.path)) {
+                    file.score += 150;
+                    file.matchedConstraints.push('session-context');
+                }
+            });
         }
 
         // Apply context filters
@@ -119,6 +241,17 @@ export async function processRequest(userPrompt: string, options: any): Promise<
         // Exclude generated files by default (unless --include-generated is specified)
         if (!options.includeGenerated) {
             scoredFiles = scoredFiles.filter(f => f.fileType !== 'generated');
+        }
+
+        // Filter out low-confidence results (score < 50) to reduce false positives
+        // High scores: 10000+ (exact match), 5000+ (filename match), 200+ (good structural match)
+        // Low scores: < 50 are typically weak keyword matches with many missing terms
+        const qualityThreshold = 50;
+        const beforeFilter = scoredFiles.length;
+        scoredFiles = scoredFiles.filter(f => f.score >= qualityThreshold);
+
+        if (beforeFilter > 0 && scoredFiles.length === 0) {
+            console.warn(`No high-confidence matches found (all ${beforeFilter} results had score < ${qualityThreshold})`);
         }
 
         const contextResult = buildContextResult(
