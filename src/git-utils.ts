@@ -34,7 +34,7 @@ export function getGitState(cwd: string): string {
         if (!status) return '';
 
         // Limit output length
-        const lines = status.split('\n');
+        const lines = status.split(/\r?\n/);
         if (lines.length > 20) {
             return lines.slice(0, 20).join('\n') + `\n...and ${lines.length - 20} more`;
         }
@@ -59,7 +59,7 @@ export function getGitModifiedFiles(cwd: string): Set<string> {
         const status = execSync('git status --porcelain', { cwd, timeout: 2000 }).toString();
 
         // Parse git status output: "M  src/file.ts", " M src/file.ts", "?? src/file.ts"
-        const lines = status.trim().split('\n').filter(l => l.length > 0);
+        const lines = status.trim().split(/\r?\n/).filter(l => l.length > 0);
         for (const line of lines) {
             const filePath = line.substring(3).trim(); // Skip status prefix
             if (filePath && !filePath.includes('node_modules')) {

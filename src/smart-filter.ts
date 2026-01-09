@@ -579,7 +579,7 @@ export class SmartFilter {
         try {
             const fullPath = path.join(projectRoot, scoredFile.path);
             const content = await fs.readFile(fullPath, 'utf-8');
-            const lines = content.split('\n');
+            const lines = content.split(/\r?\n/);
 
             const matchedLines: Array<{ line: number; content: string; keyword: string; priority: number }> = [];
 

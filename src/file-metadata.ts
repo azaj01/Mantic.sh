@@ -37,7 +37,7 @@ export async function getFileMetadata(filepath: string, cwd: string): Promise<Fi
             created: stats.birthtime.toISOString()
         };
     } catch (error) {
-        // File might not exist or be accessible
+        // File might not exist or be accessible (e.g., EACCES on Windows)
         return null;
     }
 }

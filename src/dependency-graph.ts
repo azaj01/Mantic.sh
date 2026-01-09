@@ -39,7 +39,7 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
     try {
         const fullPath = path.join(cwd, filepath);
         const content = await fs.readFile(fullPath, 'utf-8');
-        const lines = content.split('\n');
+        const lines = content.split(/\r?\n/);
         const imports: ImportStatement[] = [];
 
         // Regex patterns for different import styles

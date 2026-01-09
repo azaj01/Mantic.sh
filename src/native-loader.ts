@@ -87,7 +87,10 @@ export class NativeLoader {
 
     private isCommandAvailable(cmd: string): boolean {
         try {
-            execSync(`command -v ${cmd}`, { stdio: 'ignore' });
+            // Cross-platform command detection
+            // Windows uses 'where', Unix/Linux uses 'command -v'
+            const checkCmd = process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`;
+            execSync(checkCmd, { stdio: 'ignore' });
             return true;
         } catch {
             return false;
@@ -140,15 +143,21 @@ export class NativeLoader {
     }
 
     private async loadFromGlob(cwd: string): Promise<string[]> {
-        return fg(['**/*'], {
-            cwd,
-            ignore: this.ignorePatterns,
-            dot: true,
-            onlyFiles: true,
-            suppressErrors: true,
-            followSymbolicLinks: false,
-            deep: 10
-        });
+        try {
+            return await fg(['**/*'], {
+                cwd,
+                ignore: this.ignorePatterns,
+                dot: true,
+                onlyFiles: true,
+                suppressErrors: true, // Ignore permission errors (EACCES on Windows)
+                followSymbolicLinks: false, // Avoid WSL symlink issues on Windows
+                deep: 10
+            });
+        } catch (error) {
+            // Handle any errors gracefully (e.g., permission denied)
+            console.error('[NativeLoader] fast-glob error:', error instanceof Error ? error.message : String(error));
+            return [];
+        }
     }
 
     /**

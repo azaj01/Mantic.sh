@@ -45,8 +45,9 @@ export function findRelatedTests(filepath: string, allFiles: string[]): string[]
         path.join(dir, '__tests__', `${baseName}.test${ext}`),
 
         // tests directory (parallel structure)
-        filepath.replace('/src/', '/tests/').replace(ext, `.test${ext}`),
-        filepath.replace('/lib/', '/tests/').replace(ext, `.test${ext}`),
+        // Note: File paths from scanners use forward slashes on all platforms
+        filepath.replace(/\/src\//, '/tests/').replace(ext, `.test${ext}`),
+        filepath.replace(/\/lib\//, '/tests/').replace(ext, `.test${ext}`),
 
         // Root tests directory
         path.join('tests', path.basename(filepath, ext) + '.test' + ext),

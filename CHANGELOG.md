@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.0.22
+
+**Windows Compatibility Release**
+
+This patch release adds full Windows support, resolving all platform-specific compatibility issues.
+
+### Windows Platform Fixes
+- **Cross-Platform Command Detection**: Fixed binary detection to use `where` on Windows instead of Unix-only `command -v`
+  - Resolves fd/fdfind binary detection on Windows PowerShell
+  - Properly detects available system utilities across all platforms
+- **Line Ending Handling**: Updated all file parsing to handle both Windows (`\r\n`) and Unix (`\n`) line endings
+  - Fixed git status parsing
+  - Fixed file line counting
+  - Fixed import/export extraction
+  - Fixed keyword matching in file content
+- **Path Separator Robustness**: Improved path handling for Windows compatibility
+  - Made path replacements more robust using regex patterns
+  - Leverages Node.js path normalization for cross-platform consistency
+- **Permission Error Handling**: Enhanced error handling for Windows-specific issues
+  - Gracefully handles EACCES permission errors
+  - Safely skips WSL symlinks and inaccessible paths
+  - Prevents crashes when scanning protected directories
+
+### Technical Details
+- Files modified: `native-loader.ts`, `git-utils.ts`, `process-request.ts`, `dependency-graph.ts`, `smart-filter.ts`, `impact-analyzer.ts`, `file-metadata.ts`
+- All changes maintain backward compatibility with Unix/Linux/macOS
+- Builds successfully with TypeScript with no errors
+
+**Issue Resolved**: [#9](https://github.com/marcoaapfortes/Mantic.sh/issues/9) - Windows compatibility issues
+
+---
+
 ## 1.0.21
 
 **Major Release: Production-Ready Context-Aware Code Search**

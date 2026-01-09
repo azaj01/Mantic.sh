@@ -23,7 +23,7 @@ async function calculateFileMetadata(filePath: string, targetDir: string, maxSco
         const fullPath = path.join(targetDir, filePath);
         const stats = await fs.promises.stat(fullPath);
         const content = await fs.promises.readFile(fullPath, 'utf8');
-        const lines = content.split('\n').length;
+        const lines = content.split(/\r?\n/).length;
         const estimatedTokens = lines * 4;
 
         const confidence = maxScore > 0 ? Math.min(1.0, fileScore / maxScore) : 0.5;
