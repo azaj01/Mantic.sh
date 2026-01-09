@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.23
+
+**MCP Stability Release**
+
+Critical bug fix for MCP server zero-query mode crash.
+
+### MCP Server Fixes
+- **Zero-Query Mode Crash**: Fixed `get_context` tool crash when no active context is available
+  - Added null check for `result.context` before accessing properties
+  - Now gracefully returns "No active context detected" message instead of crashing
+  - Resolves "Cannot read properties of undefined (reading 'topic')" error
+
+### Technical Details
+- File modified: `mcp-server.ts`
+- Maintains backward compatibility
+- Builds successfully with TypeScript
+
+---
+
 ## 1.0.22
 
 **Windows Compatibility Release**

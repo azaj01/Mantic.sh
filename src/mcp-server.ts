@@ -621,7 +621,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = JSON.parse(output);
 
-        if (result.mode !== 'zero-query') {
+        if (result.mode !== 'zero-query' || !result.context) {
           return {
             content: [
               {
