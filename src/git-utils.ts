@@ -58,10 +58,12 @@ export function getGitModifiedFiles(cwd: string): Set<string> {
     try {
         const status = execSync('git status --porcelain', { cwd, timeout: 2000 }).toString();
 
-        // Parse git status output: "M  src/file.ts", " M src/file.ts", "?? src/file.ts"
-        const lines = status.trim().split(/\r?\n/).filter(l => l.length > 0);
+        // Parse git status output: " M src/file.ts", "M  src/file.ts", "?? src/file.ts"
+        // Format: XY PATH where X=index status, Y=worktree status (2 chars + space + path)
+        // Don't trim the whole string as it removes the leading space from first line
+        const lines = status.split(/\r?\n/).filter(l => l.length >= 4);
         for (const line of lines) {
-            const filePath = line.substring(3).trim(); // Skip status prefix
+            const filePath = line.substring(3).trimEnd(); // Keep leading, trim trailing
             if (filePath && !filePath.includes('node_modules')) {
                 recentFiles.add(filePath);
             }
@@ -78,6 +80,106 @@ export function getGitModifiedFiles(cwd: string): Set<string> {
  */
 export function clearGitCache(): void {
     gitRepoCache.clear();
+}
+
+export interface FileStatus {
+    path: string;
+    status: 'M' | 'A' | 'D' | 'R' | 'C' | 'U' | '?';  // Modified, Added, Deleted, Renamed, Copied, Unmerged, Untracked
+    staged: boolean;
+}
+
+/**
+ * Get detailed git status for modified files
+ * Returns a map of filepath -> status info
+ */
+export function getDetailedGitStatus(cwd: string): Map<string, FileStatus> {
+    const result = new Map<string, FileStatus>();
+
+    if (!isGitRepo(cwd)) {
+        return result;
+    }
+
+    try {
+        const status = execSync('git status --porcelain', { cwd, timeout: 2000 }).toString();
+        // Don't trim the whole string as it removes the leading space from first line
+        const lines = status.split(/\r?\n/).filter(l => l.length >= 4);
+
+        for (const line of lines) {
+            const indexStatus = line[0];  // Status in index (staged)
+            const workStatus = line[1];   // Status in work tree
+            const filePath = line.substring(3).trimEnd(); // Keep leading, trim trailing
+
+            if (!filePath) continue;
+
+            // Determine primary status
+            let primaryStatus: FileStatus['status'] = '?';
+            let staged = false;
+
+            if (indexStatus !== ' ' && indexStatus !== '?') {
+                // Has staged changes
+                staged = true;
+                primaryStatus = indexStatus as FileStatus['status'];
+            } else if (workStatus !== ' ') {
+                primaryStatus = workStatus === '?' ? '?' : workStatus as FileStatus['status'];
+            }
+
+            result.set(filePath, {
+                path: filePath,
+                status: primaryStatus,
+                staged
+            });
+        }
+    } catch {
+        // Git command failed
+    }
+
+    return result;
+}
+
+/**
+ * Get files modified in the last N hours
+ * @param cwd - Working directory
+ * @param hours - Number of hours to look back (must be a finite positive number)
+ */
+export function getRecentlyModifiedFiles(cwd: string, hours: number = 24): Set<string> {
+    const recentFiles = new Set<string>();
+
+    // Validate hours parameter to prevent injection
+    if (!Number.isFinite(hours) || hours < 0) {
+        return recentFiles;
+    }
+    const safeHours = Math.floor(hours);
+
+    if (!isGitRepo(cwd)) {
+        return recentFiles;
+    }
+
+    try {
+        // Get files modified in working tree (uncommitted changes)
+        const modified = getGitModifiedFiles(cwd);
+        for (const f of modified) {
+            recentFiles.add(f);
+        }
+
+        // Get files from recent commits
+        const since = `${safeHours} hours ago`;
+        const result = spawnSync('git', ['log', '--name-only', '--pretty=format:', '--since', since], {
+            cwd,
+            timeout: 5000,
+            encoding: 'utf-8'
+        });
+
+        if (result.stdout) {
+            const lines = result.stdout.split('\n').filter(l => l.trim().length > 0);
+            for (const line of lines) {
+                recentFiles.add(line.trim());
+            }
+        }
+    } catch {
+        // Git command failed
+    }
+
+    return recentFiles;
 }
 
 /**

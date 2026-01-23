@@ -59,20 +59,61 @@ const IGNORE_PATTERNS = [
 ];
 
 /**
- * Get ignore patterns, including MANTIC_IGNORE_PATTERNS from env
+ * Load .manticignore file from project root
  */
-function getIgnorePatterns(): string[] {
+async function loadManticIgnore(projectRoot: string): Promise<string[]> {
+    const ignorePath = path.join(projectRoot, '.manticignore');
+    try {
+        const content = await fs.readFile(ignorePath, 'utf-8');
+        return content
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && !line.startsWith('#'));
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Load .manticignore file synchronously (for hot path)
+ */
+function loadManticIgnoreSync(projectRoot: string): string[] {
+    const ignorePath = path.join(projectRoot, '.manticignore');
+    try {
+        const fsSync = require('fs');
+        const content = fsSync.readFileSync(ignorePath, 'utf-8');
+        return content
+            .split('\n')
+            .map((line: string) => line.trim())
+            .filter((line: string) => line.length > 0 && !line.startsWith('#'));
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Get ignore patterns from defaults, env, and .manticignore
+ */
+function getIgnorePatterns(projectRoot?: string): string[] {
+    const patterns = [...IGNORE_PATTERNS];
+
+    // Add env patterns
     const envPatterns = process.env.MANTIC_IGNORE_PATTERNS;
-    if (!envPatterns) {
-        return IGNORE_PATTERNS;
+    if (envPatterns) {
+        const additionalPatterns = envPatterns
+            .split(',')
+            .map(p => p.trim())
+            .filter(p => p.length > 0);
+        patterns.push(...additionalPatterns);
     }
 
-    const additionalPatterns = envPatterns
-        .split(',')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
+    // Add .manticignore patterns
+    if (projectRoot) {
+        const manticIgnorePatterns = loadManticIgnoreSync(projectRoot);
+        patterns.push(...manticIgnorePatterns);
+    }
 
-    return [...IGNORE_PATTERNS, ...additionalPatterns];
+    return patterns;
 }
 
 /**
@@ -137,7 +178,7 @@ async function estimateFileCount(cwd: string): Promise<number> {
 
     const stream = fg.stream(['**/*'], {
         cwd,
-        ignore: getIgnorePatterns(),
+        ignore: getIgnorePatterns(cwd),
         dot: true,
         onlyFiles: true,
         suppressErrors: true,
@@ -262,7 +303,7 @@ async function scanProjectInternal(
     // Get current file list
     // Get current file list using Native Loader (Git/Fd/Glob)
     // This handles caching regexes and selecting the fastest binary
-    const loader = new NativeLoader(getIgnorePatterns());
+    const loader = new NativeLoader(getIgnorePatterns(cwd));
     let files = await loader.loadFiles(cwd);
 
     // Fallback logic handled internally by loader
@@ -510,7 +551,7 @@ async function scanProjectLegacyInternal(
 
     // 1. Get File Structure
     // 1. Get File Structure using Native Loader
-    const loader = new NativeLoader(getIgnorePatterns());
+    const loader = new NativeLoader(getIgnorePatterns(cwd));
     let files = await loader.loadFiles(cwd);
 
     progress(`Scanned ${files.length.toLocaleString()} files using NativeLoader`);

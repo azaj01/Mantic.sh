@@ -163,13 +163,67 @@ export async function processRequest(userPrompt: string, options: any): Promise<
 
                 // If scanner skipped scoring, we must do it validly here (Single Threaded for <50k)
                 const { ManticEngine } = await import('./brain-scorer.js');
-                const engine = new ManticEngine();
+                const { getRecentlyModifiedFiles } = await import('./git-utils.js');
+                const { getQuickImportRanks } = await import('./dependency-graph.js');
+
+                const recentFiles = getRecentlyModifiedFiles(targetDir, 24);
+
+                // Calculate import ranks for hub detection (fast, limited to 1000 files)
+                let importRanks = new Map<string, number>();
+                if (allFiles.length < 10000) {
+                    importRanks = await getQuickImportRanks(allFiles, targetDir);
+                }
+
+                const engine = new ManticEngine(undefined, recentFiles, importRanks);
                 // Note: rankFiles expects files, keywords, intent, cwd
                 return engine.rankFiles(allFiles, intentAnalysis.keywords, intentAnalysis, targetDir);
             };
         }
 
-        const rawResults = await scoredFilesFn();
+        let rawResults = await scoredFilesFn();
+
+        // Semantic reranking (if enabled and available, unless --fast is set)
+        if (options.semantic && !options.fast && rawResults.length > 0) {
+            try {
+                const { SemanticScorer } = await import('./semantic-scorer.js');
+                const isAvailable = await SemanticScorer.isAvailable();
+
+                if (isAvailable) {
+                    const scorer = new SemanticScorer();
+                    const top50 = rawResults.slice(0, 50);
+                    const top50ForScorer = top50.map(r => ({
+                        path: r.path || r.file,
+                        score: r.score
+                    }));
+
+                    const reranked = await scorer.rerank(userPrompt, top50ForScorer, targetDir);
+
+                    // Create a lookup map of original results by path for metadata preservation
+                    const originalByPath = new Map<string, any>();
+                    for (const r of top50) {
+                        const key = r.path || r.file;
+                        originalByPath.set(key, r);
+                    }
+
+                    // Map reranked results back, preserving original metadata
+                    rawResults = reranked.map(r => {
+                        const original = originalByPath.get(r.path) || {};
+                        return {
+                            ...original,
+                            path: r.path,
+                            score: Math.round(r.combinedScore * 10000), // Scale back up
+                            reasons: [...(original.reasons || (original.matchType ? [original.matchType] : [])), 'semantic-match'],
+                            semanticScore: r.semanticScore
+                        };
+                    });
+                }
+            } catch (error) {
+                // Semantic scoring failed, continue with heuristic results
+                if (!options.quiet) {
+                    console.error('Semantic reranking unavailable, using heuristic results');
+                }
+            }
+        }
 
         // Calculate max score for confidence calculation
         const maxScore = rawResults.length > 0 ? Math.max(...rawResults.map(r => r.score)) : 0;

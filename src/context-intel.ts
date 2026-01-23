@@ -6,7 +6,8 @@
  * Returns actionable context without requiring explicit search queries
  */
 
-import { getGitModifiedFiles } from './git-utils.js';
+import { getGitModifiedFiles, getDetailedGitStatus, FileStatus } from './git-utils.js';
+import * as fs from 'fs';
 import { SessionManager, SessionFile } from './session-manager.js';
 import { buildDependencyGraph, DependencyGraph } from './dependency-graph.js';
 import { analyzeMultipleImpacts, ImpactAnalysis, BlastRadius } from './impact-analyzer.js';
@@ -37,6 +38,7 @@ export interface ZeroQueryContext {
     modified: Array<{
         path: string;
         status: string;
+        staged: boolean;
         last_modified: string;
     }>;
     related: RelatedFile[];
@@ -127,11 +129,27 @@ export class ContextIntel {
         );
 
         // 10. Format modified files with metadata
-        const modifiedWithMeta = modifiedFiles.map(filepath => ({
-            path: filepath,
-            status: 'M',  // TODO: Get actual git status (M, A, D, etc)
-            last_modified: 'recently'  // TODO: Get actual timestamp
-        }));
+        const gitStatus = getDetailedGitStatus(this.projectRoot);
+        const modifiedWithMeta = modifiedFiles.map(filepath => {
+            const status = gitStatus.get(filepath);
+            let lastModified = 'recently';
+
+            // Try to get actual mtime
+            try {
+                const fullPath = path.join(this.projectRoot, filepath);
+                const stats = fs.statSync(fullPath);
+                lastModified = stats.mtime.toISOString();
+            } catch {
+                // File might not exist or be inaccessible
+            }
+
+            return {
+                path: filepath,
+                status: status?.status || 'M',
+                staged: status?.staged || false,
+                last_modified: lastModified
+            };
+        });
 
         return {
             context: workingContext,

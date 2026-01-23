@@ -24,6 +24,8 @@ interface FileEntry {
     pathParts: string[];  // All path components (for path matching)
     ext: string;
     depth: number;
+    isRecent: boolean;  // Modified in last 24h
+    importRank: number; // 0-100, higher = more central file (imported by many)
 }
 
 interface SearchResult {
@@ -73,9 +75,13 @@ export class ManticEngine {
     private index: FileEntry[] = [];
     private cache: CacheIndex | null = null;
     private extensionRegex: RegExp;
+    private recentFiles: Set<string> = new Set();
+    private importRanks: Map<string, number> = new Map();
 
-    constructor(cache?: CacheIndex) {
+    constructor(cache?: CacheIndex, recentFiles?: Set<string>, importRanks?: Map<string, number>) {
         this.cache = cache || null;
+        this.recentFiles = recentFiles || new Set();
+        this.importRanks = importRanks || new Map();
 
         // Build dynamic extension regex from EXTENSION_WEIGHTS
         // Sort by length descending so longer extensions match first
@@ -84,6 +90,20 @@ export class ManticEngine {
             .sort((a, b) => b.length - a.length);
         const alts = extensions.join('|');
         this.extensionRegex = new RegExp(`\\.(${alts})\\b`, 'i');
+    }
+
+    /**
+     * Set recently modified files for recency boost
+     */
+    setRecentFiles(files: Set<string>): void {
+        this.recentFiles = files;
+    }
+
+    /**
+     * Set import ranks for hub file boost
+     */
+    setImportRanks(ranks: Map<string, number>): void {
+        this.importRanks = ranks;
     }
 
     /**
@@ -109,7 +129,9 @@ export class ManticEngine {
                 parentDirNormalized: this.normalizeSeparators(parentDir.toLowerCase()),
                 pathParts: parts.map(part => part.toLowerCase()),
                 ext: fileName.includes('.') ? '.' + fileName.split('.').pop()! : '',
-                depth: parts.length
+                depth: parts.length,
+                isRecent: this.recentFiles.has(p),
+                importRank: this.importRanks.get(p) || 0
             };
         });
     }
@@ -390,6 +412,19 @@ export class ManticEngine {
         // Penalize test files heavily (lowest priority)
         if (TEST_PATTERNS.some(pattern => pattern.test(original))) {
             score -= 60; // Heavy penalty - tests are usually noise in search
+        }
+
+        // G. RECENCY BOOST
+        // Files modified in the last 24h get a significant boost
+        if (entry.isRecent) {
+            score += 100; // Active context is usually recent context
+        }
+
+        // H. IMPORT RANK BOOST (PageRank-like)
+        // Central hub files (imported by many) get a boost
+        if (entry.importRank > 0) {
+            // Scale: rank 100 = +50 points, rank 50 = +25 points
+            score += Math.round(entry.importRank / 2);
         }
 
         return Math.max(0, score);

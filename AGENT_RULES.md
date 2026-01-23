@@ -1,4 +1,4 @@
-# Mantic Agent Rules (v1.0.21)
+# Mantic Agent Rules (v1.0.25)
 
 Configure your AI assistant to use Mantic as its primary search engine with advanced features.
 
@@ -6,167 +6,103 @@ Configure your AI assistant to use Mantic as its primary search engine with adva
 Create a file named `.cursorrules` in the root of your project:
 
 ```markdown
-# Codebase Search Protocol (Mantic v1.0.21)
+# Codebase Search Protocol (Mantic v1.0.25)
 
-You have access to a powerful semantic code search tool called `mantic` with the following MCP tools:
-- `search_files` - Primary search with context carryover support
-- `get_context` - Zero-query mode for proactive context detection
-- `session_start`, `session_end`, `session_record_view` - Session management for context continuity
+You have access to `mantic`, a semantic code search engine with Hybrid Intelligence.
+
+## Tools Available
+- `search_files`: Primary search. Use `semantic: true` for concept searches.
+- `get_definition`: Go to definition of a symbol (Class, Function, Interface).
+- `find_references`: Find all usages of a symbol.
+- `get_context`: Proactive zero-query context detection.
+- `session_start/end`: Manage context for multi-step tasks.
 
 ## Search Strategy
 
-WHENEVER you need to:
-- Find code implementing a feature
-- Understand how a component works
-- Locate definitions or references
-- Explore codebase architecture
-- Start working on a task
+### 1. Initial Context
+At the start of ANY task, run `get_context()` to see modified files and suggestions.
 
-YOU MUST:
-1. Use `get_context()` at the START of work to understand current context
-2. ALWAYS use `search_files` tool FIRST before grep/glob
-3. Use natural language queries (e.g., "auth middleware logic" not just "auth")
-4. Start sessions for multi-step tasks to enable context carryover
-5. Record viewed files with `session_record_view` to boost them in future searches
+### 2. Finding Features (Heuristic vs Semantic)
+- **Heuristic (Default)**: Use for precise terms.
+  - `search_files({ query: "auth middleware" })`
+- **Semantic (Concept)**: Use when you don't know the exact terms.
+  - `search_files({ query: "how is user identity verified", semantic: true })`
 
-## Session Workflow (Recommended)
+### 3. Code Navigation (Deep Intel)
+- **Definition**: `get_definition({ symbol: "AuthService" })`
+- **Usages**: `find_references({ symbol: "loginUser" })`
 
-1. get_context() → See modified files and suggestions
-2. session_start({ name: "task-name" }) → Get sessionId
-3. search_files({ query: "...", sessionId: "..." }) → Context-aware search
-4. session_record_view({ sessionId, files: [...] }) → Record what you viewed
-5. search_files({ query: "related query", sessionId: "..." }) → Viewed files boosted
-6. session_end({ sessionId }) → Clean up when done
-
-## Progressive Disclosure
-
-Search results include:
-- File size, line count, estimated tokens
-- Confidence scores (0-1)
-- Last modified timestamps
-- Impact analysis (with includeImpact: true)
-
-Use this metadata to decide which files to read first.
-
-DO NOT use `grep` or file listing tools unless Mantic fails to find relevant results.
+## Session Workflow
+1. `get_context()`
+2. `session_start({ name: "refactor-auth" })`
+3. `search_files({ query: "...", sessionId: "..." })`
+4. `session_record_view({ sessionId, files: [...] })`
+5. `session_end({ sessionId })` (when done)
 ```
 
 ## 2. For Claude Desktop (MCP)
 Add this to your **Project Instructions** in Claude:
 
 ```markdown
-# Tool Usage Guidelines (Mantic v1.0.21)
+# Tool Usage Guidelines (Mantic v1.0.25)
 
-## Codebase Search (Mantic)
-You have a semantic search tool configured via MCP with advanced context awareness.
+## Capabilities
+You have access to Mantic, capable of:
+1. **Hybrid Search**: Keyword + Neural (`semantic: true`).
+2. **Code Intelligence**: Tree-setter based navigation.
 
-### Available Tools
-- `search_files` - Primary search (supports sessionId for context carryover)
-- `get_context` - Zero-query mode (shows current working context)
-- `session_start/end` - Manage coding sessions
-- `session_record_view` - Track viewed files for context boost
-- `analyze_intent` - Understand query intent
+## When to Use Which Tool
+- **Unknown Codebase**: Start with `get_context()`.
+- **Feature Search**: Use `search_files`. If standard search fails, retry with `semantic: true`.
+- **Reading Code**: Use `get_definition` to jump to definitions instead of guessing paths.
+- **Refactoring**: Use `find_references` to ensure you catch all usages.
 
-### When to Use
-
-**Start of Work:**
-1. Call `get_context()` to see modified files and suggestions
-2. Start a session if working on multi-step task
-
-**During Work:**
-1. Use `search_files` with sessionId for context-aware search
-2. Record viewed files with `session_record_view`
-3. Previously viewed files get +150 score boost in subsequent searches
-
-**Key Features:**
-- Progressive disclosure: Results include file size, tokens, confidence
-- Impact analysis: Use includeImpact for blast radius
-- Context carryover: Sessions remember what you've seen
-
-### Priority
-Use Mantic BEFORE reading file lists or guessing paths. Let it guide your exploration.
+## Progressive Disclosure
+Mantic returns file metadata (tokens, confidence). Use this to decide what to read.
+ALWAYS prioritize high-confidence files.
 ```
 
 ## 3. For Claude Code (CLI)
-If using the terminal-based `claude` CLI, add this to your prompt or system instructions:
+If using the terminal-based `claude` CLI, add this to your prompt:
 
 ```markdown
-# Search Capability (Mantic v1.0.21)
+# Search Capability (Mantic v1.0.25)
 
-You have access to Mantic via the terminal with enhanced features.
+You have access to Mantic via the terminal.
 
-## Basic Search
-npx mantic.sh "your query here"
+## commands
 
-## Advanced Features
+**1. Semantic Search (Concept matching):**
+`npx mantic.sh "verify user identity" --semantic`
 
-**Zero-Query Mode (Context Detection):**
-npx mantic.sh ""  # Shows modified files, suggestions, impact
+**2. Standard Search (Fast):**
+`npx mantic.sh "script controller" --code`
 
-**Context Carryover (Session Mode):**
-npx mantic.sh "query" --session "session-name"
+**3. Code Intelligence:**
+- Go to Definition: `npx mantic.sh goto "AppController"`
+- Find References: `npx mantic.sh references "handleClick"`
 
-**Output Formats:**
-npx mantic.sh "query" --json        # Full metadata
-npx mantic.sh "query" --files       # Paths only
-npx mantic.sh "query" --markdown    # Pretty output
+**4. Zero-Query (Context):**
+`npx mantic.sh ""`
 
-**Impact Analysis:**
-npx mantic.sh "query" --impact  # Shows blast radius
+## Best Practices
+- Use **Semantic Search** for "how to", "logic for", or broad concepts.
+- Use **Standard Search** for exact filenames or known terms.
+- Use **Code Intel** for precise navigation, avoid `grep` for code symbols.
+- Use **Impact Analysis** (`--impact`) before making changes.
 
-**File Type Filters:**
-npx mantic.sh "query" --code     # Code files only
-npx mantic.sh "query" --test     # Test files only
-npx mantic.sh "query" --config   # Config files only
+## 4. Best Practices Summary for Agents
 
-### Search Quality (v1.0.21)
-- CamelCase detection: "ScriptController" finds script_controller.h
-- Exact filename matching: "download_manager.cc" returns exact file first
-- Path sequence: "blink renderer core dom" matches directory structure
-- Word boundaries: "script" won't match "javascript"
-- Directory boosting: "gpu" prioritizes files in gpu/ directories
+### Query Patterns
+- **Concept**: "how does stripe payment flow work" -> **Use `--semantic`**
+- **Specific**: "StripeService.ts" -> **Use Standard**
+- **Debugging**: "NullReference in Auth" -> **Use `--semantic` to find root cause**
 
-### Do NOT use grep/find blindly. Use Mantic first.
+### Navigation
+- Stop guessing file paths.
+- Use `get_definition` to find where classes/functions are defined.
+- Use `find_references` to check blast radius.
+
+### Context
+- Always start with `get_context` (or `mantic ""` in CLI) to align with the user's active work.
 ```
-
-## 4. Best Practices
-
-### Query Patterns That Work Best
-
-**Good Queries:**
-- "authentication middleware logic"
-- "stripe payment processing"
-- "user profile component"
-- "database migration files"
-- "api rate limiting"
-
-**Exact Match Queries:**
-- "BookingPage.tsx" (exact filename)
-- "EventType" (CamelCase component)
-- "download_manager.cc" (exact file)
-
-**Path Queries:**
-- "apps web components booking" (directory structure)
-- "blink renderer core dom" (path sequence)
-- "tensorflow core framework" (package path)
-
-**Avoid:**
-- Single generic words ("user", "data")
-- Just file extensions (".ts")
-- Overly broad queries without context
-
-### Context Carryover Strategy
-
-1. Start sessions for tasks lasting 3+ queries
-2. Record ALL files you read/modify
-3. Use same sessionId across related searches
-4. Previously viewed files get automatic +150 boost
-5. End sessions when switching tasks
-
-### Progressive Disclosure Usage
-
-Use metadata to prioritize:
-- Read high-confidence files first (confidence > 0.8)
-- Skip large files if possible (check lines/tokens)
-- Check timestamps to understand recency
-- Use impact analysis before modifying files

@@ -11,6 +11,7 @@
  * 4. Energy Efficiency: Minimize expensive operations
  */
 
+import { execSync } from 'child_process';
 import { CacheIndex } from './types.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -50,6 +51,10 @@ export interface SearchPattern {
     constraints: FilterConstraint[];
     successfulPaths: string[];
     usageCount: number;
+    // Team sync metadata (v2)
+    contributors?: string[];
+    lastUpdated?: string;
+    confidence?: number;
 }
 
 export class SmartFilter {
@@ -504,6 +509,21 @@ export class SmartFilter {
     }
 
     /**
+     * Get the current git user for contributor tracking
+     */
+    private getGitUser(): string {
+        try {
+            const name = execSync('git config user.name', {
+                cwd: this.projectRoot,
+                encoding: 'utf-8'
+            }).trim();
+            return name || 'anonymous';
+        } catch {
+            return 'anonymous';
+        }
+    }
+
+    /**
      * Learn from successful searches
      */
     async learnPattern(
@@ -512,20 +532,38 @@ export class SmartFilter {
         successfulPath: string
     ): Promise<void> {
         const patternKey = keywords.sort().join('_').toLowerCase();
+        const contributor = this.getGitUser();
+        const now = new Date().toISOString();
 
         let pattern = this.learnedPatterns.get(patternKey);
 
         if (pattern) {
             pattern.usageCount++;
+            pattern.lastUpdated = now;
+
             if (!pattern.successfulPaths.includes(successfulPath)) {
                 pattern.successfulPaths.push(successfulPath);
             }
+
+            // Track contributors (paths only, no content)
+            if (!pattern.contributors) {
+                pattern.contributors = [];
+            }
+            if (!pattern.contributors.includes(contributor)) {
+                pattern.contributors.push(contributor);
+            }
+
+            // Update confidence based on usage
+            pattern.confidence = Math.min(1.0, pattern.usageCount / 10);
         } else {
             pattern = {
                 keywords,
                 constraints,
                 successfulPaths: [successfulPath],
-                usageCount: 1
+                usageCount: 1,
+                contributors: [contributor],
+                lastUpdated: now,
+                confidence: 0.1
             };
         }
 
@@ -548,6 +586,58 @@ export class SmartFilter {
         } catch {
             // No patterns file yet, start fresh
         }
+    }
+
+    /**
+     * Merge incoming patterns with local patterns
+     * Used when pulling team patterns from git
+     */
+    async mergePatterns(incoming: Record<string, SearchPattern>): Promise<void> {
+        for (const [key, incomingPattern] of Object.entries(incoming)) {
+            const existing = this.learnedPatterns.get(key);
+
+            if (!existing) {
+                // New pattern, add it
+                this.learnedPatterns.set(key, incomingPattern);
+            } else {
+                // Merge: higher usage wins, union paths and contributors
+                existing.usageCount = Math.max(existing.usageCount, incomingPattern.usageCount);
+                existing.confidence = Math.max(existing.confidence || 0, incomingPattern.confidence || 0);
+
+                // Union of successful paths
+                for (const p of incomingPattern.successfulPaths) {
+                    if (!existing.successfulPaths.includes(p)) {
+                        existing.successfulPaths.push(p);
+                    }
+                }
+
+                // Union of contributors
+                if (incomingPattern.contributors) {
+                    if (!existing.contributors) existing.contributors = [];
+                    for (const c of incomingPattern.contributors) {
+                        if (!existing.contributors.includes(c)) {
+                            existing.contributors.push(c);
+                        }
+                    }
+                }
+
+                // Keep most recent timestamp
+                if (incomingPattern.lastUpdated) {
+                    if (!existing.lastUpdated || new Date(incomingPattern.lastUpdated) > new Date(existing.lastUpdated)) {
+                        existing.lastUpdated = incomingPattern.lastUpdated;
+                    }
+                }
+            }
+        }
+        await this.saveLearnedPatterns();
+    }
+
+    /**
+     * Export patterns for team sharing
+     */
+    exportPatterns(): string {
+        const patterns = Object.fromEntries(this.learnedPatterns);
+        return JSON.stringify(patterns, null, 2);
     }
 
     /**

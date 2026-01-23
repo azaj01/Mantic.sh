@@ -11,7 +11,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import path from 'path';
 
 // Zod schemas for tool inputs
@@ -21,7 +21,19 @@ const SearchFilesSchema = z.object({
   filter: z.enum(['code', 'config', 'test', 'all']).optional().default('code').describe('File type filter'),
   maxResults: z.number().optional().default(20).describe('Maximum number of files to return (default: 20)'),
   includeImpact: z.boolean().optional().default(false).describe('Include impact analysis (blast radius, dependents)'),
+  semantic: z.boolean().optional().default(false).describe('Enable neural reranking for improved relevance (slower but smarter)'),
   sessionId: z.string().optional().describe('Session ID to enable context carryover (boosts previously viewed files)'),
+});
+
+const GetDefinitionSchema = z.object({
+  symbol: z.string().describe('Symbol name to find definition for (e.g., "AuthService", "loginUser")'),
+  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+});
+
+const FindReferencesSchema = z.object({
+  symbol: z.string().describe('Symbol name to find references for'),
+  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+  dir: z.string().optional().describe('Specific directory to restrict search to'),
 });
 
 const AnalyzeIntentSchema = z.object({
@@ -112,12 +124,63 @@ const TOOLS = [
           description: 'Include impact analysis showing blast radius and dependents (default: false)',
           default: false,
         },
+        semantic: {
+          type: 'boolean',
+          description: 'Enable neural reranking for improved relevance (slower but smarter) (default: false)',
+          default: false,
+        },
         sessionId: {
           type: 'string',
           description: 'Session ID to enable context carryover (boosts previously viewed files)',
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'get_definition',
+    description:
+      'Go to the definition of a class, function, or symbol. ' +
+      'Uses Tree-sitter for precise, compiler-grade code intelligence. ' +
+      'Returns the file path, line number, and snippets of the definition.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: {
+          type: 'string',
+          description: 'Symbol name to find definition for',
+        },
+        cwd: {
+          type: 'string',
+          description: 'Working directory (defaults to current directory)',
+        },
+      },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'find_references',
+    description:
+      'Find all usages/references of a symbol across the codebase. ' +
+      'Useful for refactoring or understanding usage patterns. ' +
+      'Returns a list of file paths and line numbers with context snippets.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: {
+          type: 'string',
+          description: 'Symbol name to find references for',
+        },
+        cwd: {
+          type: 'string',
+          description: 'Working directory (defaults to current directory)',
+        },
+        dir: {
+          type: 'string',
+          description: 'Specific directory to restrict search to',
+        },
+      },
+      required: ['symbol'],
     },
   },
   {
@@ -278,7 +341,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'search_files': {
-        const { query, cwd, filter, maxResults, includeImpact, sessionId } = SearchFilesSchema.parse(args);
+        const { query, cwd, filter, maxResults, includeImpact, semantic, sessionId } = SearchFilesSchema.parse(args);
 
         const workDir = cwd || process.cwd();
 
@@ -296,6 +359,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Add session flag for context carryover
         if (sessionId) cmd += ` --session "${sessionId}"`;
+
+        // Add semantic flag
+        if (semantic) cmd += ' --semantic';
 
         // Execute and capture output
         const output = execSync(cmd, {
@@ -691,6 +757,92 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: resultLines.join('\n'),
             },
           ],
+        };
+      }
+
+      case 'get_definition': {
+        const { symbol, cwd } = GetDefinitionSchema.parse(args);
+        const workDir = cwd || process.cwd();
+        const ppPath = path.join(__dirname, 'index.js');
+
+        // Use spawnSync with array arguments to prevent command injection
+        const spawnResult = spawnSync('node', [ppPath, 'goto', symbol, '--json'], {
+          cwd: workDir,
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000,
+          env: { ...process.env, NO_COLOR: '1' },
+        });
+
+        if (spawnResult.error) {
+          throw spawnResult.error;
+        }
+
+        const output = spawnResult.stdout;
+
+        // Parse JSON output
+        const result = JSON.parse(output);
+
+        if (!result.found || !result.definition) {
+          return {
+            content: [{ type: 'text', text: `No definition found for "${symbol}"` }],
+          };
+        }
+
+        const def = result.definition;
+        return {
+          content: [{
+            type: 'text',
+            text: `Definition of "${symbol}":\n\n${def.file}:${def.line}:${def.column}\n  ${def.type} ${def.name}`
+          }],
+        };
+      }
+
+      case 'find_references': {
+        const { symbol, cwd, dir } = FindReferencesSchema.parse(args);
+        const workDir = cwd || process.cwd();
+        const ppPath = path.join(__dirname, 'index.js');
+
+        // Build args array safely to prevent command injection
+        const spawnArgs = [ppPath, 'references', symbol, '--json'];
+        if (dir) {
+          spawnArgs.push('--dir', dir);
+        }
+
+        const spawnResult = spawnSync('node', spawnArgs, {
+          cwd: workDir,
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000,
+          env: { ...process.env, NO_COLOR: '1' },
+        });
+
+        if (spawnResult.error) {
+          throw spawnResult.error;
+        }
+
+        const output = spawnResult.stdout;
+        const references = JSON.parse(output);
+
+        if (references.length === 0) {
+          return {
+            content: [{ type: 'text', text: `No references found for "${symbol}"` }],
+          };
+        }
+
+        const resultLines = [`Found ${references.length} references to "${symbol}":`, ''];
+
+        references.slice(0, 50).forEach((ref: any) => {
+          resultLines.push(`  ${ref.file}:${ref.line}`);
+          resultLines.push(`    ${ref.context.trim()}`);
+        });
+
+        if (references.length > 50) {
+          resultLines.push(`\n  ... and ${references.length - 50} more`);
+        }
+
+        return {
+          content: [{ type: 'text', text: resultLines.join('\n') }],
         };
       }
 

@@ -1,0 +1,92 @@
+{
+  "name": "mantic",
+  "displayName": "Mantic",
+  "description": "AI-native code search with semantic understanding",
+  "version": "0.1.0",
+  "publisher": "mantic",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marcoaapfortes/Mantic.sh"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "search",
+    "code search",
+    "ai",
+    "semantic search",
+    "code intelligence"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mantic.search",
+        "title": "Mantic: Search"
+      },
+      {
+        "command": "mantic.searchSemantic",
+        "title": "Mantic: Search (Semantic)"
+      },
+      {
+        "command": "mantic.definitions",
+        "title": "Mantic: Show Definitions"
+      },
+      {
+        "command": "mantic.references",
+        "title": "Mantic: Find References"
+      },
+      {
+        "command": "mantic.goto",
+        "title": "Mantic: Go to Definition"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "mantic.search",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
+      }
+    ],
+    "configuration": {
+      "title": "Mantic",
+      "properties": {
+        "mantic.cliPath": {
+          "type": "string",
+          "default": "mantic",
+          "description": "Path to the Mantic CLI executable"
+        },
+        "mantic.defaultSemantic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable semantic search by default"
+        },
+        "mantic.maxResults": {
+          "type": "number",
+          "default": 20,
+          "description": "Maximum number of search results to display"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.3"
+  }
+}

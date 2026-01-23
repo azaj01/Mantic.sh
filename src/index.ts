@@ -5,6 +5,7 @@
  */
 
 import { Command } from 'commander';
+import * as path from 'path';
 
 const program = new Command();
 
@@ -29,6 +30,9 @@ program
     .option('--include-generated', 'Include generated files (.lock, .log, dist/)')
     // Impact Analysis
     .option('--impact', 'Include impact analysis (blast radius, dependents)')
+    // Semantic Search
+    .option('--semantic', 'Enable neural reranking for improved relevance')
+    .option('--fast', 'Skip semantic reranking (heuristic only)')
     // Session Memory
     .option('--session <id>', 'Use active session for context carryover')
     .action(async (queryParts, options) => {
@@ -144,6 +148,194 @@ session
 
         await sm.endSession();
         console.log(`Session ended: ${sessionId || 'current'}`);
+    });
+
+// Repository Map command
+program
+    .command('map [directory]')
+    .description('Show repository architecture map')
+    .option('-d, --depth <n>', 'Max directory depth', '4')
+    .option('--no-ranks', 'Hide importance indicators')
+    .option('--all', 'Include all files (not just code)')
+    .action(async (directory, options) => {
+        const { generateRepoMap } = await import('./repo-map.js');
+
+        const targetDir = directory
+            ? path.resolve(process.cwd(), directory)
+            : process.cwd();
+
+        try {
+            const map = await generateRepoMap(targetDir, {
+                maxDepth: parseInt(options.depth) || 4,
+                showRanks: options.ranks !== false,
+                codeOnly: !options.all
+            });
+            console.log(map);
+        } catch (error) {
+            console.error('Error:', error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
+    });
+
+// Code Intelligence commands
+program
+    .command('definitions <file>')
+    .description('List all definitions in a file')
+    .option('--json', 'Output as JSON')
+    .action(async (file, options, command) => {
+        const globalOptions = command.parent?.opts() || {};
+        const jsonMode = options.json || globalOptions.json;
+        const { CodeIntel } = await import('./code-intel.js');
+
+        try {
+            const intel = new CodeIntel();
+            await intel.init();
+            const definitions = await intel.getDefinitions(file, process.cwd());
+
+            if (jsonMode) {
+                console.log(JSON.stringify(definitions, null, 2));
+            } else {
+                if (definitions.length === 0) {
+                    console.log('No definitions found.');
+                    return;
+                }
+
+                for (const def of definitions) {
+                    console.log(`${def.type.padEnd(10)} ${def.name.padEnd(30)} ${def.file}:${def.line}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
+    });
+
+program
+    .command('references <symbol>')
+    .description('Find all references to a symbol')
+    .option('-d, --dir <dir>', 'Search directory')
+    .option('--json', 'Output as JSON')
+    .action(async (symbol, options, command) => {
+        const globalOptions = command.parent?.opts() || {};
+        const jsonMode = options.json || globalOptions.json;
+        const { CodeIntel } = await import('./code-intel.js');
+        const { getGitFiles, isGitRepo } = await import('./git-utils.js');
+        const fg = (await import('fast-glob')).default;
+
+        try {
+            const cwd = options.dir ? path.resolve(process.cwd(), options.dir) : process.cwd();
+            let files = getGitFiles(cwd);
+
+            if (files.length === 0 && !isGitRepo(cwd)) {
+                // Fallback for non-git directories
+                if (!jsonMode) {
+                    console.error('Note: Not a git repository. Scanning all files (this might take a moment)...');
+                }
+                files = await fg(['**/*.{ts,js,jsx,tsx,py,go,rs,c,cpp,h,java}'], {
+                    cwd,
+                    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'],
+                    dot: false
+                });
+            }
+
+            if (files.length === 0) {
+                if (jsonMode) {
+                    console.log(JSON.stringify([], null, 2));
+                } else {
+                    console.log('No files found to search.');
+                }
+                return;
+            }
+
+            const intel = new CodeIntel();
+            await intel.init();
+            const references = await intel.findReferences(symbol, files, cwd);
+
+            if (jsonMode) {
+                console.log(JSON.stringify(references, null, 2));
+            } else {
+                if (references.length === 0) {
+                    console.log(`No references found for "${symbol}".`);
+                    return;
+                }
+
+                console.log(`Found ${references.length} references to "${symbol}":\n`);
+                for (const ref of references.slice(0, 50)) {
+                    console.log(`  ${ref.file}:${ref.line}`);
+                    console.log(`    ${ref.context}`);
+                }
+
+                if (references.length > 50) {
+                    console.log(`\n  ... and ${references.length - 50} more`);
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
+    });
+
+program
+    .command('goto <symbol>')
+    .description('Go to the definition of a symbol')
+    .option('-p, --path <dir>', 'Search directory')
+    .option('--json', 'Output as JSON')
+    .action(async (symbol, options, command) => {
+        const globalOptions = command.parent?.opts() || {};
+        const jsonMode = options.json || globalOptions.json;
+        const { CodeIntel } = await import('./code-intel.js');
+        const { getGitFiles, isGitRepo } = await import('./git-utils.js');
+        const fg = (await import('fast-glob')).default;
+
+        try {
+            const cwd = options.path ? path.resolve(process.cwd(), options.path) : process.cwd();
+            let files = getGitFiles(cwd);
+
+            if (files.length === 0 && !isGitRepo(cwd)) {
+                // Fallback for non-git directories
+                if (!jsonMode) {
+                    console.error('Note: Not a git repository. Scanning all files (this might take a moment)...');
+                }
+                files = await fg(['**/*.{ts,js,jsx,tsx,py,go,rs,c,cpp,h,java}'], {
+                    cwd,
+                    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'],
+                    dot: false
+                });
+            }
+
+            if (files.length === 0) {
+                if (jsonMode) {
+                    console.log(JSON.stringify({ found: false, symbol, cwd, definition: null }, null, 2));
+                } else {
+                    console.log('No files found to search.');
+                }
+                return;
+            }
+
+            const intel = new CodeIntel();
+            await intel.init();
+            const definition = await intel.goToDefinition(symbol, files, cwd);
+
+            if (jsonMode) {
+                console.log(JSON.stringify({
+                    found: !!definition,
+                    symbol,
+                    cwd,
+                    definition
+                }, null, 2));
+            } else {
+                if (!definition) {
+                    console.log(`Definition not found for "${symbol}".`);
+                    return;
+                }
+
+                console.log(`${definition.file}:${definition.line}:${definition.column}`);
+                console.log(`  ${definition.type} ${definition.name}`);
+            }
+        } catch (error) {
+            console.error('Error:', error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
     });
 
 // MCP Server command

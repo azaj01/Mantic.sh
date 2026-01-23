@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.0.25
+
+**Semantic Reranking, Code Intelligence, and Performance Improvements**
+
+This release introduces local neural reranking, deep code intelligence via Tree-sitter, and significant performance optimizations (~2x faster).
+
+### 1. Semantic Reranking (Hybrid Intelligence)
+- **Neural Engine**: Added `--semantic` flag which downloads and runs `all-MiniLM-L6-v2` locally via `transformers.js`.
+- **Hybrid Scoring**: Combines structural score (paths/filenames) with cosine similarity of vector embeddings.
+- **Zero Egress**: All vectorization and reranking happens on your local machine. No data sent to cloud.
+
+### 2. Code Intelligence (Deep Context)
+- **Engine**: Integrated `web-tree-sitter` for robust AST parsing.
+- **Go to Definition**: `mantic goto <symbol>` finds the definition of any class, function, or type across the repo.
+- **Find References**: `mantic references <symbol>` finds all usages.
+- **Cross-Language**: Full support for TypeScript, JavaScript, and Python.
+
+### 3. Team Memories (Learning)
+- **Persistence**: "Learned patterns" (which queries map to which files) are now persisted to `.mantic/search-patterns.json`.
+- **Sync**: Teams can commit this file to git to share "organization knowledge" instantly.
+
+### Stability & Security Fixes
+- **ReDoS Protection**: Added length guards to regex searches to prevent Denial of Service attacks.
+- **Type Safety**: Fixed `ZeroQueryContext` type mismatches.
+- **Command Injection**: Patched a vulnerability in the VS Code extension where search queries could execute shell commands.
+- **Non-Git Fallback**: CLI now gracefully handles non-git directories using `fast-glob`.
+- **Python Support**: Fixed dependency graph parsing for Python `import` statements.
+
+### Technical Details
+- **MCP Server**: Added `get_definition`, `find_references`, and `semantic` search support.
+- Added dependencies: `@xenova/transformers`, `web-tree-sitter`, `fast-glob`.
+- Updated `vscode-extension` to use `shell: false`.
+
+---
+
 ## 1.0.24
 
 **Windows EPERM Fix Release**

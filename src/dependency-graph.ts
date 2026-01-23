@@ -91,6 +91,21 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
                 continue;
             }
 
+            // Match ES6 star (namespace) import
+            if (line.trim().startsWith('import * as')) {
+                const starMatch = /import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"]/.exec(line);
+                if (starMatch) {
+                    imports.push({
+                        source: starMatch[2],
+                        importedNames: [starMatch[1]],
+                        isDefault: false,
+                        isDynamic: false,
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
+            }
+
             // Match dynamic imports
             const dynamicMatch = /import\(['"]([^'"]+)['"]\)/.exec(line);
             if (dynamicMatch) {
@@ -117,6 +132,38 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
                     isDynamic: false,
                     line: lineNum + 1
                 });
+                continue;
+            }
+
+            // Python imports
+            if (filepath.endsWith('.py')) {
+                // from module import name
+                const fromImportMatch = /^from\s+([\w\.]+)\s+import\s+(.+)$/.exec(line.trim());
+                if (fromImportMatch) {
+                    const source = fromImportMatch[1];
+                    const names = fromImportMatch[2].split(',').map(n => n.trim().split(/\s+as\s+/)[0]);
+                    imports.push({
+                        source,
+                        importedNames: names,
+                        isDefault: false,
+                        isDynamic: false,
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
+
+                // import module
+                const importMatch = /^import\s+([\w\.]+)/.exec(line.trim());
+                if (importMatch) {
+                    imports.push({
+                        source: importMatch[1],
+                        importedNames: [], // Import entire module
+                        isDefault: true,
+                        isDynamic: false,
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
             }
         }
 
@@ -296,4 +343,80 @@ export async function buildDependencyGraph(
     }
 
     return { nodes, reverseLookup };
+}
+
+/**
+ * Calculate import rank (PageRank-like) for files
+ * Returns a map of filepath -> rank (0-100)
+ * Files imported by many others get higher ranks
+ */
+export function calculateImportRanks(graph: DependencyGraph): Map<string, number> {
+    const ranks = new Map<string, number>();
+
+    // Count dependents for each file
+    const dependentCounts: Array<[string, number]> = [];
+    for (const [filepath, dependents] of graph.reverseLookup.entries()) {
+        dependentCounts.push([filepath, dependents.size]);
+    }
+
+    if (dependentCounts.length === 0) {
+        return ranks;
+    }
+
+    // Find max for normalization
+    const maxDependents = Math.max(...dependentCounts.map(([_, count]) => count));
+
+    // Normalize to 0-100 scale
+    for (const [filepath, count] of dependentCounts) {
+        const normalizedRank = Math.round((count / maxDependents) * 100);
+        ranks.set(filepath, normalizedRank);
+    }
+
+    return ranks;
+}
+
+/**
+ * Quick import rank calculation without full graph build
+ * Uses cached index or fast regex scan
+ */
+export async function getQuickImportRanks(
+    files: string[],
+    cwd: string
+): Promise<Map<string, number>> {
+    const importCounts = new Map<string, number>();
+
+    // Only scan code files
+    const codeFiles = files.filter(f =>
+        f.endsWith('.ts') || f.endsWith('.tsx') ||
+        f.endsWith('.js') || f.endsWith('.jsx') ||
+        f.endsWith('.py')
+    );
+
+    // Limit to first 1000 files for speed
+    const filesToScan = codeFiles.slice(0, 1000);
+
+    for (const filepath of filesToScan) {
+        try {
+            const imports = await extractImports(filepath, cwd);
+            for (const imp of imports) {
+                const resolved = resolveImportPath(imp.source, filepath, files, cwd);
+                if (resolved) {
+                    importCounts.set(resolved, (importCounts.get(resolved) || 0) + 1);
+                }
+            }
+        } catch {
+            // Skip files that can't be read
+        }
+    }
+
+    // Normalize to 0-100
+    const ranks = new Map<string, number>();
+    if (importCounts.size === 0) return ranks;
+
+    const maxCount = Math.max(...importCounts.values());
+    for (const [filepath, count] of importCounts.entries()) {
+        ranks.set(filepath, Math.round((count / maxCount) * 100));
+    }
+
+    return ranks;
 }
