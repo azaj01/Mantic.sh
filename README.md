@@ -13,7 +13,7 @@ Mantic is a **context-aware code search engine** that prioritizes **relevance ov
 
 **Overall Assessment**: 4/5 - Excellent for AI agents, good for developers, needs speed optimization for 100K+ file repos.
 
-## What's New in v1.0.25 🚀
+## What's New in v1.0.25
 
 **Enterprise-Grade Context Infrastructure**
 
