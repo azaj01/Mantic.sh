@@ -151,7 +151,7 @@ export async function generateRepoMap(cwd: string, options: MapOptions = {}): Pr
 
     // Filter to code files if requested
     if (codeOnly) {
-        const codeExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.rb', '.php']);
+        const codeExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.rb', '.php', '.gd']);
         files = files.filter(f => {
             const ext = path.extname(f).toLowerCase();
             return codeExtensions.has(ext);

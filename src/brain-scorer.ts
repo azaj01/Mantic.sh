@@ -36,7 +36,7 @@ interface SearchResult {
 
 const EXTENSION_WEIGHTS: Record<string, number> = {
     '.ts': 20, '.tsx': 20, '.js': 15, '.jsx': 15,
-    '.rs': 20, '.go': 20, '.py': 15,
+    '.rs': 20, '.go': 20, '.py': 15, '.gd': 15, '.tscn': 8,
     '.prisma': 15, '.graphql': 10,
     '.css': 5, '.json': 5, '.md': 2
 };
