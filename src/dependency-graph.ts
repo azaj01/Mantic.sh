@@ -451,7 +451,7 @@ export async function getQuickImportRanks(
     const codeFiles = files.filter(f =>
         f.endsWith('.ts') || f.endsWith('.tsx') ||
         f.endsWith('.js') || f.endsWith('.jsx') ||
-        f.endsWith('.py')
+        f.endsWith('.py') || f.endsWith('.gd')
     );
 
     // Limit to first 1000 files for speed
