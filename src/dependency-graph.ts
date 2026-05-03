@@ -168,8 +168,11 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
 
             // GDScript imports
             if (filepath.endsWith('.gd')) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('#')) continue;
+
                 // extends "res://path/to/script.gd"
-                const extendsMatch = /^extends\s+["']([^"']+)["']/.exec(line.trim());
+                const extendsMatch = /^extends\s+["']([^"']+)["']/.exec(trimmedLine);
                 if (extendsMatch) {
                     imports.push({
                         source: normalizeGodotPath(extendsMatch[1]),
@@ -182,7 +185,7 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
                 }
 
                 // preload("res://path") or load("res://path")
-                const loadMatch = /(preload|load)\s*\(\s*["']([^"']+)["']\s*\)/.exec(line);
+                const loadMatch = /(preload|load)\s*\(\s*["']([^"']+)["']\s*\)/.exec(trimmedLine);
                 if (loadMatch) {
                     imports.push({
                         source: normalizeGodotPath(loadMatch[2]),
