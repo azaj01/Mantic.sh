@@ -157,7 +157,54 @@ export async function extractImports(filepath: string, cwd: string): Promise<Imp
                 if (importMatch) {
                     imports.push({
                         source: importMatch[1],
-                        importedNames: [], // Import entire module
+                        importedNames: [],
+                        isDefault: true,
+                        isDynamic: false,
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
+            }
+
+            // GDScript imports
+            if (filepath.endsWith('.gd')) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('#')) continue;
+
+                // extends "res://path/to/script.gd"
+                const extendsMatch = /^extends\s+["']([^"']+)["']/.exec(trimmedLine);
+                if (extendsMatch) {
+                    imports.push({
+                        source: normalizeGodotPath(extendsMatch[1]),
+                        importedNames: [],
+                        isDefault: true,
+                        isDynamic: false,
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
+
+                // preload("res://path") or load("res://path")
+                const loadMatch = /(preload|load)\s*\(\s*["']([^"']+)["']\s*\)/.exec(trimmedLine);
+                if (loadMatch) {
+                    imports.push({
+                        source: normalizeGodotPath(loadMatch[2]),
+                        importedNames: [],
+                        isDefault: true,
+                        isDynamic: loadMatch[1] === 'load',
+                        line: lineNum + 1
+                    });
+                    continue;
+                }
+            }
+
+            // Godot scene (.tscn) ext_resource references
+            if (filepath.endsWith('.tscn')) {
+                const extResourceMatch = /\bpath\s*=\s*"([^"]+)"/.exec(line);
+                if (extResourceMatch) {
+                    imports.push({
+                        source: normalizeGodotPath(extResourceMatch[1]),
+                        importedNames: [],
                         isDefault: true,
                         isDynamic: false,
                         line: lineNum + 1
@@ -228,6 +275,14 @@ export async function extractExports(filepath: string, cwd: string): Promise<str
 }
 
 /**
+ * Convert a Godot res:// path to a plain project-relative path.
+ * "res://scripts/player.gd" → "scripts/player.gd"
+ */
+function normalizeGodotPath(source: string): string {
+    return source.startsWith('res://') ? source.slice('res://'.length) : source;
+}
+
+/**
  * Resolve import source to actual file path
  * Handles:
  * - Relative imports: ./Button, ../utils/auth
@@ -241,6 +296,16 @@ export function resolveImportPath(
     allFiles: string[],
     cwd: string
 ): string | null {
+    // Godot project-root-relative path (already normalized from res://)
+    // e.g. "scripts/player.gd" — resolve from cwd, not from importer
+    const isGodotAbsolute = !importSource.startsWith('.') &&
+                            !importSource.startsWith('@/') &&
+                            /\.(gd|tscn|tres)$/.test(importSource);
+    if (isGodotAbsolute) {
+        if (allFiles.includes(importSource)) return importSource;
+        return null;
+    }
+
     // External module (node_modules)
     if (!importSource.startsWith('.') && !importSource.startsWith('@/')) {
         return null;  // Ignore external dependencies
@@ -264,7 +329,7 @@ export function resolveImportPath(
     }
 
     // Try with common extensions
-    const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', ''];
+    const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.gd', '.tscn', ''];
     const indexFiles = ['/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
 
     for (const ext of extensions) {
@@ -389,7 +454,7 @@ export async function getQuickImportRanks(
     const codeFiles = files.filter(f =>
         f.endsWith('.ts') || f.endsWith('.tsx') ||
         f.endsWith('.js') || f.endsWith('.jsx') ||
-        f.endsWith('.py')
+        f.endsWith('.py') || f.endsWith('.gd')
     );
 
     // Limit to first 1000 files for speed

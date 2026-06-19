@@ -45,6 +45,7 @@ const CONFIG_PATTERNS = [
     /docker-compose/,
     /\.gitignore$/,
     /\.editorconfig$/,
+    /\.tscn$/,
 ];
 
 // Test configuration patterns (should be classified as 'test', not 'config')
@@ -78,6 +79,7 @@ const CODE_EXTENSIONS = new Set([
     '.ts', '.tsx', '.js', '.jsx', '.mjs',
     '.py', '.java', '.go', '.rs', '.c', '.cpp',
     '.rb', '.php', '.swift', '.kt',
+    '.gd',
 ]);
 
 /**

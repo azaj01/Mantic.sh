@@ -26,6 +26,11 @@ export function classifyProject(files: string[], techStack: string): ProjectMeta
              fileLower.some(f => f.endsWith('.vue'))) {
         projectType = 'vue';
     }
+    // Godot detection (before CLI — Godot addons often have bin/ directories)
+    else if (fileLower.some(f => f.includes('project.godot')) ||
+             fileLower.some(f => f.endsWith('.gd'))) {
+        projectType = 'godot';
+    }
     // CLI detection
     else if (fileLower.some(f => f.includes('bin/') || f.includes('cli.')) ||
              techStack.toLowerCase().includes('commander') ||
@@ -113,6 +118,7 @@ export function getProjectTypeDescription(metadata: ProjectMetadata): string {
         'python': 'Python project',
         'go': 'Go project',
         'rust': 'Rust project',
+        'godot': 'Godot project',
         'unknown': 'Unknown project type'
     };
 

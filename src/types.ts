@@ -116,6 +116,7 @@ export type ProjectType =
     | 'python'
     | 'go'
     | 'rust'
+    | 'godot'
     | 'unknown';
 
 export interface ProjectMetadata {
