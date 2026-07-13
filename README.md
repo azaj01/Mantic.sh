@@ -351,32 +351,14 @@ MANTIC_FUNCTION_SCAN_LIMIT=30 # Top files to scan for function names (default: d
 
 ## License
 
-Mantic.sh is **Dual Licensed** to support both open access and sustainable development.
+Mantic.sh is released under the MIT License.
 
-### 1. AGPL-3.0 (Open Source & Internal Use)
-**Ideal for**: Individuals, Internal Business Tools, Open Source Projects.
+You can use, copy, modify, merge, publish, distribute, sublicense, and sell
+copies of the software as long as the copyright notice and license text are
+included.
 
-- **Free for internal use** (e.g., using Mantic.sh CLI in your company's dev team).
-- **Free for open source** (integrating into other AGPL/GPL projects).
-- **Requirement**: If you distribute Mantic.sh (or a modified version) as part of your own application (e.g., embedding it in a proprietary IDE or SaaS), you **must open-source your entire application** under AGPL-3.0. For hosted services, users must have access to the modified source code.
+See [LICENSE](LICENSE) for the full MIT terms.
 
-### 2. Commercial License (Proprietary & Embedding)
-**Ideal for**: Commercial IDEs, SaaS Platforms, Proprietary Products.
-
-- **Embed Mantic.sh** in proprietary software (e.g., VS Code forks, AI Agents, SaaS tools).
-- **No open-source requirement** (keep your source code private).
-- **Support & Indemnification**: Priority email support and legal indemnification included.
-
-**Pricing**:
-- **Internal Use**: Free (under AGPL-3.0).
-- **Commercial Integration**: Contact for pricing (starts at $500/year, based on usage).
-
-**Enforcement**:
-All derivatives must comply with AGPL-3.0 unless under a commercial license. Unauthorized copying or rewrites may violate copyright laws.
-
-**Contributing**:
-To maintain the dual-license model, all contributors must sign a Contributor License Agreement (CLA) granting relicensing rights.
-
-**Contact**: [license@mantic.sh](mailto:license@mantic.sh)
-
-See [LICENSE](LICENSE) for the full AGPL-3.0 terms.
+Note: earlier releases published under AGPL-3.0 remain available under the
+terms they were originally shipped with. The repository is MIT-licensed going
+forward.

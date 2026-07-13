@@ -4,6 +4,7 @@
   "description": "AI-native code search with semantic understanding",
   "version": "0.1.0",
   "publisher": "mantic",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/marcoaapfortes/Mantic.sh"
